@@ -1,88 +1,37 @@
-"""The almighty Hello World! example"""
+"""Honeycomb Empire!"""
 import sys, random
 from math import sin, pi, floor
 import ctypes
 
 import sdl2.ext
 import sdl2.sdlgfx
-#from draw import drawRegularHexagon
 
+import graphics
 import logic
+import draw
 
+ZOOM_LEVEL = 40
 SCREEN_WIDTH = 2048
 SCREEN_HEIGHT = 1152
 
-def sdl_init():
-    sdl2.ext.init()
-    global window, renderflags, context
-    window = sdl2.ext.Window("Hello World!", size=(SCREEN_WIDTH, SCREEN_HEIGHT))
-    window.show()
-    # Create a rendering context for the window. The sdlgfx module requires it.
-    # NOTE: Defaults to software rendering to avoid flickering on some systems.
-    if "-hardware" in sys.argv:
-        renderflags = sdl2.render.SDL_RENDERER_ACCELERATED | sdl2.render.SDL_RENDERER_PRESENTVSYNC
-    else:
-        renderflags = sdl2.render.SDL_RENDERER_SOFTWARE
-    context = sdl2.ext.Renderer(window, flags=renderflags)
+context = graphics.context
 
-def fun():
-        context.clear(0)
-        draw_random_hexagons()
-        context.present()
-        sdl2.SDL_Delay(100)
+#def cube_to_oddq(cube):
+#    col = cube.x
+#    row = cube.z + (cube.x - (cube.x&1)) / 2
+#    return OffsetCoord(col, row)
 
-def draw_regular_hexagon(context, x, y, size, color):
-    # Geometry
-    h = -sin(pi/3)
-    vx = (x, x+size, x+3*size/2, x+size, x, x-size/2)
-    vy = (y, y, y-h*size, y-2*h*size, y-2*h*size, y-h*size)
-    n = 6
-
-    # Casting to ctypes
-    xlist, ylist = (sdl2.Sint16 * n)(), (sdl2.Sint16 * n)()
-    for i in range(n):
-        xlist[i] = int(floor(vx[i]))
-        ylist[i] = int(floor(vy[i]))
-    xptr = ctypes.cast(xlist, ctypes.POINTER(sdl2.Sint16))
-    yptr = ctypes.cast(ylist, ctypes.POINTER(sdl2.Sint16))
-
-    # Calling gfx drawing function
-    sdl2.sdlgfx.filledPolygonColor(context.sdlrenderer, xptr, yptr, n, color)
-
-def draw_random_hexagons():
-    for _ in range(1000):
-        color = random.randint(0, 0xFFFFFFFF)
-        x = random.randint(0,SCREEN_WIDTH)
-        y = random.randint(0,SCREEN_HEIGHT)
-        size = random.randint(10,100)
-        draw_regular_hexagon(context, x, y, size, color)
-
-def draw_hex_grid(maxx, maxy):
-    size = 40
-    color = 0xFF00FFFF
-    x,y = size/2,0
-    h = sin(pi/3)
-    ydelta = 2*size*h
-    xdelta = 3*size/2
-    shift = 1/2*ydelta
-    for column in range(maxx):
-        if (column % 2 == 1):
-            y += shift
-        for _rowElem in range(maxy):
-            #color = random.randint(0, 0xFFFFFFFF)
-            draw_regular_hexagon(context, x, y, size, color)
-            y += ydelta +2
-        x += xdelta +2
-        y = 0
-
-
-
+#def oddq_to_cube(hex):
+#    x = hex.col
+#    z = hex.row - (hex.col - (hex.col&1)) / 2
+#    y = -x-z
+#    return Cube(x, y, z)
 
 def run():
-    sdl_init()
+    #sdl_init()
 
-    draw_hex_grid(20,10)
-    context.present()
+    #draw_hex_grid(20,10)
+    #graphics.context.present()
     
     turn = 0
     game = logic.Game()
@@ -97,7 +46,11 @@ def run():
         turn += 1
         if turn >= 100000: break
         for tile in game.world.tiles:
+            draw.draw_game_tile(tile, context)
+            draw.draw_tile_units(tile, context)
             tile.generate_units()
+        context.present()
+        sdl2.SDL_Delay(300)
         if (turn % 2 == 0):
             print("Turn:", turn)
             logic.print_world_state(game.world)

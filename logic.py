@@ -1,7 +1,7 @@
 import random
 
-MAP_WIDTH = 20
-MAP_HEIGHT = 10
+MAP_WIDTH = 24
+MAP_HEIGHT = 12
 
 
 class Game:
