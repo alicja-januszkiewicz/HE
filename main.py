@@ -83,14 +83,12 @@ def run():
 
     draw_hex_grid(20,10)
     context.present()
+    
     turn = 0
-    players = logic.initialise_players()
-    world = logic.generate_empty_world()
-    for player in players:
-        player.selection = world[0]
-    logic.add_starting_areas(world, players)
+    game = logic.Game()
+    game.initialise()
 
-    running = len(players) > 1
+    running = len(game.players) > 1
     while running:
         for event in sdl2.ext.get_events():
             if event.type == sdl2.SDL_QUIT:
@@ -98,25 +96,25 @@ def run():
                 break
         turn += 1
         if turn >= 100000: break
-        for tile in world:
+        for tile in game.world.tiles:
             tile.generate_units()
         if (turn % 2 == 0):
             print("Turn:", turn)
-            logic.print_world_state(world)
-        for player in players:
+            logic.print_world_state(game.world)
+        for player in game.players:
             player.actions = 5
             if player.ai == True:
-                while player.actions > 0 and logic.check_for_any_units(world, player):
-                    logic.ai_controller(world, player)
-        if len(players) <= 1:
-            for i in range(1000):
-                print(i, len(players), running)
+                while player.actions > 0 and game.world.check_for_any_units(player):
+                    logic.ai_controller(game.world.tiles, player)
+        if len(game.players) <= 1:
+            running = False
             break
             #else:
                 #get_human_event()
 
     
     sdl2.ext.quit()
+    print(sys.path)
     return 0
 
 if __name__ == "__main__":
