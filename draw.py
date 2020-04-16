@@ -24,6 +24,11 @@ def draw_regular_hexagon(context, x, y, size, color):
     # Calling gfx drawing function
     sdl2.sdlgfx.filledPolygonColor(context.sdlrenderer, xptr, yptr, n, color)
 
+def draw_circle(context, x, y, radius, color):
+    x, y = int(floor(x)), int(floor(y))
+    radius = int(floor(radius))
+    sdl2.sdlgfx.filledCircleColor(context.sdlrenderer, x, y, radius, color)
+
 def draw_random_hexagons(context):
     for _ in range(1000):
         color = random.randint(0, 0xFFFFFFFF)
@@ -56,13 +61,13 @@ def draw_game_tile(tile, context):
     size = ZOOM_LEVEL
     color = 0xFFAAAAAA
     if (tile.owner.id == "Redosia"):
-        color = 0xFF0000FF
+        color = 0xAA0000FF
     if (tile.owner.id == "Bluegaria"):
-        color = 0xFFFF0000
+        color = 0xAAd0e040
     if (tile.owner.id == "Greenland"):
-        color = 0xFF00FF00
+        color = 0xAA00FF00
     if (tile.owner.id == "Violetnam"):
-        color = 0xFF800080
+        color = 0xAA800080
     draw_regular_hexagon(context, x, y, size, color)
     #main.context.present()
 
@@ -76,6 +81,18 @@ def draw_tile_units(tile, context):
     if tile.units > 0:
         draw_regular_hexagon(context, x, y, size/2, color)
         #main.context.present()
+
+def draw_tile_structs(tile, context):
+    pos = map_game_coord_to_pixel_pos(tile.x, tile.y)
+    h = sin(pi/3)
+    size = ZOOM_LEVEL
+    x = pos[0] + 1/2 * size
+    y = pos[1] + h * size
+    color = 0xFFDD0000
+    if tile.structures == "Capital":
+        draw_circle(context, x, y, size/2, color)
+    if tile.structures == "city":
+        draw_circle(context, x, y, size/5, color)
 
 def map_game_coord_to_pixel_pos(world_x,world_y):
     size = ZOOM_LEVEL

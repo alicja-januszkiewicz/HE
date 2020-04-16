@@ -3,7 +3,6 @@ import random
 MAP_WIDTH = 24
 MAP_HEIGHT = 12
 
-
 class Game:
     def __init__(self):
         self.turn = 0
@@ -19,6 +18,7 @@ class Game:
             player.selection = self.world.tiles[0]
             
         self.world.add_starting_areas(self.players)
+        self.world.generate_cities(self)
 
     def initialise_players(self):
         players = []
@@ -56,15 +56,30 @@ class Player:
 
     def __str__(self):
         return self.id
-    
+
+    #def check_if_legal():
+    #    pass
+
     def click_on_tile(self, tile):
         if (self.selection.owner == self and self.selection.units != 0):
-            self.selection.move_units(tile)
+            pos = (tile.x, tile.y)
+            legal_moves = self.selection.get_neighbours_pos()
+            for coord in legal_moves:
+                #print("pos:", pos, "legal:", legal_moves)
+                if pos == coord:
+                    self.selection.move_units(tile)
+                    break
         else:
             self.selection = tile
 
 
 class Tile:
+    DIRECTIONS = ( 
+        ( (1,0), (-1,1), (0,-1), (-1,0), (0,1), (1,1) ),
+        ( (1,0), (0,-1), (-1,-1), (-1,0), (1,-1), (0,1) )
+        
+    )
+
     def __init__(self, x, y, game):
         self.x = x
         self.y = y
@@ -76,6 +91,16 @@ class Tile:
 
     def __str__(self):
         return str(self.position)
+
+    def get_neighbours_pos(self):
+        neighbours = []
+        parity = self.y & 1
+        for direction in Tile.DIRECTIONS[parity]:
+            x = self.x + direction[0]
+            y = self.y + direction[1]
+            pos = (x,y)
+            neighbours.append(pos)
+        return neighbours
 
     def move_units(self, target):
         self.owner.actions -= 1
@@ -89,8 +114,9 @@ class Tile:
         else: self.combat_system(self, target)
 
     def generate_units(self):
-        if self.structures != None: self.units += 14
-        if self.structures == "Capital": self.units += 14
+        if self.owner.id != "None":
+            if self.structures != None: self.units += 14
+            if self.structures == "Capital": self.units += 14
 
     def combat_system(self, origin, target):
         print(origin.owner, "attacks", target.owner)
@@ -135,12 +161,18 @@ class World:
                 res.append(Tile(j, i, game))
         return res
 
+    def generate_cities(self, game):
+        for tile in game.world.tiles:
+            if random.random() > 0.9:
+                tile.structures = "city"
+
     def add_starting_areas(self, players):
         for player in players:
             starting_pos = (random.randint(0, MAP_WIDTH-1), random.randint(0, MAP_HEIGHT-1))
             random_tile = self.get_tile(starting_pos, self.tiles)
             random_tile.owner = player
             random_tile.structures = "Capital"
+            player.selection = random_tile
 
     def find_own_tile(self, player):
         own_tiles = []
@@ -180,6 +212,7 @@ def ai_controller(world, player):
     #tile = find_own_tile(world, player)
     #player.click_on_tile(tile)
     tile = world[random.randrange(0, len(world))]
+    #print("AI selects", tile)
     #print(player, "selects", tile)
     player.click_on_tile(tile)
 

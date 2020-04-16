@@ -10,7 +10,7 @@ import graphics
 import logic
 import draw
 
-ZOOM_LEVEL = 40
+ZOOM_LEVEL = 50
 SCREEN_WIDTH = 2048
 SCREEN_HEIGHT = 1152
 
@@ -45,9 +45,11 @@ def run():
                 break
         turn += 1
         if turn >= 100000: break
+        context.clear(0)
         for tile in game.world.tiles:
             draw.draw_game_tile(tile, context)
             draw.draw_tile_units(tile, context)
+            draw.draw_tile_structs(tile, context)
             tile.generate_units()
         context.present()
         sdl2.SDL_Delay(300)
