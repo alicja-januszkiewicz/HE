@@ -5,7 +5,6 @@ SCREEN_WIDTH = 2048
 SCREEN_HEIGHT = 1152
 
 sdl2.ext.init()
-    #global window, renderflags, context
 window = sdl2.ext.Window("Hello World!", size=(SCREEN_WIDTH, SCREEN_HEIGHT))
 window.show()
     # Create a rendering context for the window. The sdlgfx module requires it.

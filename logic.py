@@ -1,28 +1,34 @@
+from math import floor
 import random
+
+import cube
 
 MAP_WIDTH = 24
 MAP_HEIGHT = 12
+LAYOUT = cube.Layout(cube.layout_flat, cube.Point(40,40), cube.Point(20,40))
 
+# Every game object lives in a single Game() instance.
 class Game:
     def __init__(self):
         self.turn = 0
         self.players = []
         self.world = []
-        self.event_queue = []
+        # self.event_queue = []
 
     def initialise(self):
         self.players = self.initialise_players()
         self.world = World(self)
 
         for player in self.players:
-            player.selection = self.world.tiles[0]
+            player.selection = (cube.Cube(24,0,-24), self.world.tiles[cube.Cube(24,0,-24)]) #self.world.tiles[cube.Cube(24,0,-24)]
+            #print(player.selection)
             
-        self.world.add_starting_areas(self.players)
         self.world.generate_cities(self)
+        self.world.add_starting_areas(self.players)
 
     def initialise_players(self):
         players = []
-        players.append(Player("Redosia"))
+        players.append(Player("Redosia", ai=False))
         players.append(Player("Bluegaria"))
         players.append(Player("Greenland"))
         players.append(Player("Violetnam"))
@@ -36,7 +42,7 @@ class Game:
         print(player, "has been defeated!")
 
     def surrender_to_player(self, defeated_player, player):
-        for tile in self.world.tiles:
+        for tile in self.world.tiles.values():
             if (tile.owner == defeated_player):
                 tile.units = 0
                 tile.owner = player
@@ -57,52 +63,38 @@ class Player:
     def __str__(self):
         return self.id
 
-    #def check_if_legal():
-    #    pass
+    def get_selection_neighbours(self, selection):
+        neighbours = []
+        for i in range(6):
+            neighbour = cube.cube_neighbour(selection, i)
+            neighbours.append(neighbour)
+        return neighbours
 
     def click_on_tile(self, tile):
-        if (self.selection.owner == self and self.selection.units != 0):
-            pos = (tile.x, tile.y)
-            legal_moves = self.selection.get_neighbours_pos()
+        attack_condition = self.selection[1].owner == self and self.selection[1].units != 0
+        if (attack_condition):
+            legal_moves = self.get_selection_neighbours(self.selection[0])
             for coord in legal_moves:
-                #print("pos:", pos, "legal:", legal_moves)
-                if pos == coord:
-                    self.selection.move_units(tile)
+                if tile[0] == coord:
+                    self.selection[1].move_units(tile[1])
                     break
+            self.selection = tile
         else:
             self.selection = tile
 
 
 class Tile:
-    DIRECTIONS = ( 
-        ( (1,0), (-1,1), (0,-1), (-1,0), (0,1), (1,1) ),
-        ( (1,0), (0,-1), (-1,-1), (-1,0), (1,-1), (0,1) )
-        
-    )
-
-    def __init__(self, x, y, game):
-        self.x = x
-        self.y = y
-        self.position = (x,y)
+    def __init__(self, game):
         self.game = game
         self.owner = Player()
         self.structures = None
         self.units = 0
 
     def __str__(self):
-        return str(self.position)
-
-    def get_neighbours_pos(self):
-        neighbours = []
-        parity = self.y & 1
-        for direction in Tile.DIRECTIONS[parity]:
-            x = self.x + direction[0]
-            y = self.y + direction[1]
-            pos = (x,y)
-            neighbours.append(pos)
-        return neighbours
+        return str(self.structures) + " " + str(self.owner) + " " + str(self.units)
 
     def move_units(self, target):
+        #assert isinstance(target, Tile)
         self.owner.actions -= 1
         if (target.owner.id == "None"):
             target.owner = self.owner
@@ -114,9 +106,9 @@ class Tile:
         else: self.combat_system(self, target)
 
     def generate_units(self):
-        if self.owner.id != "None":
+        if self.owner.id != "None" and self.units < 100:
             if self.structures != None: self.units += 14
-            if self.structures == "Capital": self.units += 14
+            elif self.structures == "Capital": self.units += 14
 
     def combat_system(self, origin, target):
         print(origin.owner, "attacks", target.owner)
@@ -141,44 +133,69 @@ class Tile:
         else:
             captured_tile.owner = capturing_tile.owner
 
+        captured_tile.units = capturing_tile.units
+        capturing_tile.units = 0
 
+
+class Map():
+    def __init__(self, game, layout=LAYOUT):
+        self.map = dict()
+        # for r in range(MAP_HEIGHT):
+        #     r_offset = floor(r/2) # or r>>1
+        #     q = -r_offset
+        #     while q < MAP_WIDTH - r_offset:
+        #         q += 1
+        #         self.map[cube.Cube(q, r, -q-r)] = Tile(game)
+
+        q = 0
+        while (q < MAP_WIDTH):
+            q += 1
+            q_offset = floor((q+1)/2) # or q>>1
+            r = -q_offset
+            while (r < MAP_HEIGHT - q_offset):
+                r += 1
+                self.map[(cube.Cube(q, r, -q-r))] = Tile(game)
+
+        # s = 0
+        # while (s < MAP_WIDTH):
+        #     s += 1
+        #     s_offset = floor((s+1)/2) # or q>>1
+        #     r = -s_offset
+        #     while (r < MAP_HEIGHT - s_offset):
+        #         r += 1
+        #         self.map[(cube.Cube(-s-r, r, s))] = Tile(game)
+
+
+# The game world is made of tiles. The tiles are mapped to cubic coordinates by using cubic coordinates as keys in the Map.map dictionary.
 class World:
     def __init__(self, game):
         self.game = game
-        self.tiles = self.generate_empty_world(self.game)
+        self.tiles = Map(game).map
 
     # This method will need to be coupled with map generation,
     # as to remove the need for the redundant search
-    def get_tile(self, pos, game_world):
-        for tile in game_world:
+    def get_tile(self, pos):
+        for tile in self.tiles:
             if (tile.x == pos[0] and tile.y == pos[1]):
                 return tile
 
-    def generate_empty_world(self, game):
-        res=[]
-        for i in range(MAP_HEIGHT):
-            for j in range(MAP_WIDTH):
-                res.append(Tile(j, i, game))
-        return res
-
     def generate_cities(self, game):
-        for tile in game.world.tiles:
+        for tile in game.world.tiles.values():
             if random.random() > 0.9:
-                tile.structures = "city"
+                tile.structures = "City"
 
     def add_starting_areas(self, players):
         for player in players:
-            starting_pos = (random.randint(0, MAP_WIDTH-1), random.randint(0, MAP_HEIGHT-1))
-            random_tile = self.get_tile(starting_pos, self.tiles)
-            random_tile.owner = player
-            random_tile.structures = "Capital"
-            player.selection = random_tile
+            starting_tile = random.choice(list(self.tiles.values()))
+            starting_tile.owner = player
+            starting_tile.structures = "Capital"
+            #player.selection = starting_tile
 
     def find_own_tile(self, player):
         own_tiles = []
-        for tile in self.tiles:
+        for cube, tile in self.tiles.items():
             if tile.owner == player and tile.units > 0:
-                own_tiles.append(tile)
+                own_tiles.append((cube, tile))
         if len(own_tiles) <= 1:
             i = 0
         else:
@@ -186,13 +203,13 @@ class World:
         return own_tiles[i]
 
     def find_units(self, player):
-        for tile in self.tiles:
+        for tile in self.tiles.values():
             if tile.owner == player:
                 print(tile.units)
 
     def check_for_any_units(self, player):
         own_tiles = []
-        for tile in self.tiles:
+        for tile in self.tiles.values():
             if tile.owner == player and tile.units > 0:
                 own_tiles.append(tile)
         if len(own_tiles) == 0:
@@ -208,20 +225,27 @@ class Event:
 
 
 def ai_controller(world, player):
-    #while (player.actions > 0):
-    #tile = find_own_tile(world, player)
-    #player.click_on_tile(tile)
-    tile = world[random.randrange(0, len(world))]
-    #print("AI selects", tile)
-    #print(player, "selects", tile)
+    def pick_direction():
+        direction = cube.cube_direction(random.randint(0,5))
+        return direction
+
+    tile = world.find_own_tile(player)
     player.click_on_tile(tile)
 
-def get_human_event():
-    print("humanoid player skips turn")
-    pass
+    direction = pick_direction()
+    position = tile[0] + direction
+    while position not in world.tiles:
+        direction = pick_direction()
+        position = tile[0] + direction
+
+    tiledata = world.tiles.get(position)
+    tile = (position, tiledata)
+
+    #tile = random.choice(list(world.tiles.items()))
+    player.click_on_tile(tile)
 
 def print_world_state(world):
-    for tile in world.tiles:
+    for tile in world.tiles.values():
         if tile.units > 0:
             print("Tile:", tile, "units:", tile.units, "owner:", tile.owner)
 
