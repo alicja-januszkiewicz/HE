@@ -6,23 +6,27 @@ import ctypes
 import sdl2.ext
 import sdl2.sdlgfx
 
-import graphics
+import gfx
 import cube
 import logic
 import draw
 
 ZOOM_LEVEL = 50
-SCREEN_WIDTH = 2048
-SCREEN_HEIGHT = 1152
 
-context = graphics.context
+context = gfx.context
 
-def update_screen(game):
+def update_screen(game, selector_pos=None):
     context.clear(0)
     for tile in game.world.tiles.items():
-        draw.draw_game_tile(tile, context)
-        draw.draw_tile_units(tile, context)
-        draw.draw_tile_structs(tile, context)
+        draw.game_tile(tile, context)
+        draw.tile_units(tile, context)
+        draw.tile_structs(tile, context)
+    if selector_pos in game.world.tiles:
+        draw.tile_selector(selector_pos, context)
+        if game.world.tiles.get(selector_pos).units > 0:
+            for cube_ in cube.get_all_neighbours(selector_pos, logic.MAX_TRAVEL_DISTANCE):
+                if cube_ in game.world.tiles:
+                    draw.legal_move_indicator(cube_, context)
     context.present()
 
 def run():
@@ -30,27 +34,20 @@ def run():
     game = logic.Game()
     game.initialise()
 
-    # def human_mouseclick_event(mousepos, player):
-    #     new_pos = cube.pixel_to_cube(logic.LAYOUT, cube.Point(mousepos[0], mousepos[1]))
-    #     print(new_pos)
-    #     selected_tile = game.world.tiles[new_pos]
-    #     draw.draw_tile_selector(selected_tile, context)
-    #     context.present()
-    #     player.click_on_tile(selected_tile)
-
     running = len(game.players) > 1
     while running:
         turn += 1
         if turn >= 100000: break
         for tile in game.world.tiles.values():
             tile.generate_units()
+        #game.world.expand_borders()
         update_screen(game)
         #sdl2.SDL_Delay(500)
         if (turn % 1000 == 0):
             print("Turn:", turn)
-            logic.print_world_state(game.world)
+            game.world.print_world_state()
         for player in game.players:
-            player.actions = 5
+            player.actions = logic.ACTIONS_PER_TURN
             while player.actions > 0 and game.world.check_for_any_units(player):
                 if player.ai == True:
                     logic.ai_controller(game.world, player)
@@ -61,20 +58,22 @@ def run():
                             running = False
                             break
                         if event.type == sdl2.SDL_MOUSEBUTTONDOWN:
-                            update_screen(game)
+                            # get mouse coord
                             x, y = ctypes.c_int(0), ctypes.c_int(0)
                             _ = sdl2.mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
                             mousepos = cube.Point(x.value, y.value)
+                            mousepos_cube = cube.cube_round(cube.pixel_to_cube(logic.LAYOUT, mousepos))
 
-                            new_pos = cube.cube_round(cube.pixel_to_cube(logic.LAYOUT, mousepos))
-                            print(new_pos)
-                            draw.draw_tile_selector(new_pos, context)
-                            context.present()
-                            selected_tile = game.world.tiles[new_pos]
-                            player.click_on_tile((new_pos, selected_tile))
+                            # do things
+                            selected_tile = game.world.tiles.get(mousepos_cube)
+                            if selected_tile != None:
+                                player.click_on_tile((mousepos_cube, selected_tile))
 
+                            update_screen(game, mousepos_cube)
 
         if len(game.players) <= 1:
+            for player in game.players:
+                print(player, "wins!")
             running = False
             break
 
@@ -84,6 +83,10 @@ def run():
 if __name__ == "__main__":
     sys.exit(run())
 
-# capitals dissapear -> possibly fixed
-# screen doesnt seem to draw correctly?
-# need to align game board with offset. changing LAYOUT.offset from (20,40) will break tile selection.
+# bug: starting positions can overwrite one another
+# bug: player is defeated when ANY of his capitals are captured
+# feature: players release other players when defeated
+# feature: area controlled by a player expands each turn by 1 tile
+# feature: units should be able to move by 2 tiles, unless blocked by an obstacle
+
+# feature: fog of war

@@ -17,10 +17,11 @@ class Cube():
 
     def __eq__(self, other):
         t = isinstance(other, Cube)
+        if not t: return False
         q = self.q == other.q
         r = self.r == other.r
         s = self.s == other.s
-        return(t and q and r and s)
+        return(q and r and s)
 
     def __str__(self):
         return str((self.q, self.r, self.s))
@@ -64,8 +65,23 @@ def cube_direction(direction):
     assert (0 <= direction and direction < 6)
     return cube_directions[direction]
 
-def cube_neighbour(cube, direction):
+def get_neighbour(cube, direction):
     return cube + cube_direction(direction) #try mul
+
+def get_nearest_neighbours(cube):
+    neighbours = []
+    for i in range(6):
+        neighbours.append(get_neighbour(cube, i))
+    return neighbours
+
+# can't change a set while iterating over it; iterator.update() raises an error. Hovewer, iterator = iterator.union(some_other_set) does not. Why?
+def get_all_neighbours(cube, order):
+    neighbours = set( (cube,) )
+    for _ in range(order):
+        for neighbour in neighbours.copy():
+            i = set(get_nearest_neighbours(neighbour))
+            neighbours.update(i)
+    return neighbours.difference(set((cube,)))
 
 def cube_lerp(a, b, t):
     return Cube(int(round(a.q * (1.0 - t) + b.q * t)),
@@ -159,3 +175,12 @@ def test_layout():
 
 test_cube_round()
 test_layout()
+
+def test_get_all_neighbours():
+    a = Cube(0,0,0)
+    b = get_all_neighbours(a, 2)
+    print(b)
+    print(a in b)
+    print(Cube(-1,1,0) in b)
+
+test_get_all_neighbours()
