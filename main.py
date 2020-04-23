@@ -7,7 +7,7 @@ import sdl2.ext
 import sdl2.sdlgfx
 
 import gfx
-import cube
+import cubic
 import logic
 import draw
 
@@ -15,56 +15,80 @@ ZOOM_LEVEL = 50
 
 context = gfx.context
 
-def update_screen(game, selector_pos=None):
+def update_screen(game, mousepos_cube=cubic.Cube(0,0,0)):
     context.clear(0)
-    for tile in game.world.tiles.items():
-        draw.game_tile(tile, context)
-        draw.tile_units(tile, context)
-        draw.tile_structs(tile, context)
-    if selector_pos in game.world.tiles:
-        draw.tile_selector(selector_pos, context)
-        if game.world.tiles.get(selector_pos).units > 0:
-            for cube_ in cube.get_all_neighbours(selector_pos, logic.MAX_TRAVEL_DISTANCE):
-                if cube_ in game.world.tiles:
-                    draw.legal_move_indicator(cube_, context)
+    selection = game.current_player.selection
+    selection_cube = cubic.Cube(0,0,0)
+    if selection != None: selection_cube = selection[0]
+    for tilepair in game.world.tiles.items():
+        draw.game_tile(context, tilepair)
+        draw.tile_army(context, tilepair)
+        draw.tile_structs(context, tilepair)
+
+    # draw army selector and legal move indicators
+    if selection_cube in game.world.tiles:
+        draw.tile_selector(context, selection_cube)
+        if game.world.tiles.get(selection_cube).army.manpower > 0:
+            for cube in cubic.get_all_neighbours(selection_cube, logic.MAX_TRAVEL_DISTANCE):
+                if cube in game.world.tiles:
+                    draw.legal_move_indicator(context, cube)
+
+    # draw army info
+    if mousepos_cube in game.world.tiles:
+        range = set(cubic.get_all_neighbours(mousepos_cube, 2))
+        range.add(mousepos_cube)
+        for cube in range:
+            if cube not in game.world.tiles:
+                continue
+            tile = game.world.tiles[cube]
+            if tile.army.manpower > 0:
+                tilepair = cube, tile
+                draw.army_info(context, tilepair)
     context.present()
+
+def get_pixel_mousepos():
+    x, y = ctypes.c_int(0), ctypes.c_int(0)
+    _ = sdl2.mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
+    return cubic.Point(x.value, y.value)
+
+def get_cube_mousepos():
+    pixel_mousepos = get_pixel_mousepos()
+    cube_mousepos = cubic.cube_round(cubic.pixel_to_cube(logic.LAYOUT, pixel_mousepos))
+    return cube_mousepos
 
 def run():
     turn = 0
     game = logic.Game()
-    game.initialise()
 
     running = len(game.players) > 1
     while running:
         turn += 1
-        if turn >= 100000: break
+
         for tile in game.world.tiles.values():
-            tile.generate_units()
-        #game.world.expand_borders()
+            tile.train_army()
+        
         update_screen(game)
-        #sdl2.SDL_Delay(500)
-        if (turn % 1000 == 0):
-            print("Turn:", turn)
-            game.world.print_world_state()
+
         for player in game.players:
+            game.current_player = player
             player.actions = logic.ACTIONS_PER_TURN
-            while player.actions > 0 and game.world.check_for_any_units(player):
+            while player.actions > 0 and game.world.check_for_army(player):
                 if player.ai == True:
                     logic.ai_controller(game.world, player)
                     update_screen(game)
+                    sdl2.SDL_Delay(30)
                 else:
                     for event in sdl2.ext.get_events():
                         if event.type == sdl2.SDL_QUIT:
                             running = False
-                            break
-                        if event.type == sdl2.SDL_MOUSEBUTTONDOWN:
-                            # get mouse coord
-                            x, y = ctypes.c_int(0), ctypes.c_int(0)
-                            _ = sdl2.mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
-                            mousepos = cube.Point(x.value, y.value)
-                            mousepos_cube = cube.cube_round(cube.pixel_to_cube(logic.LAYOUT, mousepos))
+                            sdl2.ext.quit()
+                            return 0
 
-                            # do things
+                        if event.type == sdl2.SDL_MOUSEMOTION:
+                            update_screen(game, get_cube_mousepos())
+
+                        if event.type == sdl2.SDL_MOUSEBUTTONDOWN:
+                            mousepos_cube = get_cube_mousepos()
                             selected_tile = game.world.tiles.get(mousepos_cube)
                             if selected_tile != None:
                                 player.click_on_tile((mousepos_cube, selected_tile))
@@ -83,6 +107,9 @@ def run():
 if __name__ == "__main__":
     sys.exit(run())
 
+# To do:
+# obstacles, morale, fonts, unit growth, max stacks, AI, unit tiers, scrolling, panning, rotating
+# replace mousemotion event with mouse-changes-cube-coord event
 # bug: starting positions can overwrite one another
 # bug: player is defeated when ANY of his capitals are captured
 # feature: players release other players when defeated
