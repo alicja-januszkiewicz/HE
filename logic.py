@@ -1,13 +1,14 @@
-from math import floor
+from math import floor, ceil
 import random
 
 from draw import LAYOUT
+import army
 import cubic
+import data
 
 MAP_WIDTH = 20
 MAP_HEIGHT = 11
 ACTIONS_PER_TURN = 5
-MAX_TRAVEL_DISTANCE = 2
 
 class AttrDict(dict):
     def __getattr__(self, name):
@@ -21,7 +22,7 @@ class Game:
     def __init__(self):
         self.turn = 0
         self.players = self.initialise_players()
-        self.current_player = self.players[0]
+        self.current_player = self.players[3]
         self.world = World(self)
         self.world.generate_cities()
         self.world.add_starting_areas(self.players)
@@ -59,6 +60,7 @@ class Player:
         self.ai = ai
         self.actions = ACTIONS_PER_TURN
         self.selection = None
+        self.starting_cube = None
 
     def __str__(self):
         return self.id
@@ -77,10 +79,11 @@ class Player:
             return 0
         
         if (self.selection != None and self.selection[1].owner == self and self.selection[1].army.manpower > 0):
-            legal_moves = cubic.get_all_neighbours(self.selection[0], MAX_TRAVEL_DISTANCE)
+            legal_moves = cubic.get_all_neighbours(self.selection[0], army.MAX_TRAVEL_DISTANCE)
             for coord in legal_moves:
                 if cube == coord:
-                    self.game.world.move_army(self.selection, tilepair)
+                    army.issue_order(self.game.world.tiles, self.selection[1], tilepair[1])
+                    self.game.world.check_victory_condition()
                     # after capturing, deselects the tile clicked on.
                     self.selection = None
                     break
@@ -99,25 +102,22 @@ class Tile:
     def __init__(self, game):
         self.game = game
         self.owner = None #Player()
-        self.structures = None
+        self.locality = AttrDict()
+        self.locality.type = None
+        self.locality.name = data.choose_random_city_name()
         self.army = AttrDict()
         self.army.manpower = 0
         self.army.morale = 0
+        self.army.can_move = False
 
     def __str__(self):
-        return str(self.structures) + " " + str(self.owner) + " " + str(self.army.manpower)
+        return str(self.locality.name) + " " + str(self.owner) + " " + str(self.army.manpower) + "/" + str(self.army.morale)
 
     def combat_strength(self):
-        diff = self.army.manpower - self.army.morale
-        return self.army.manpower + diff/2
-
-    def train_army(self):
-        if self.owner != None and self.army.manpower < 100:
-            if self.structures != None: self.army.manpower += 14
-            elif self.structures == "Capital": self.army.manpower += 14
+        return self.army.manpower + self.army.morale
 
 
-class Map():
+class Map:
     def __init__(self, game, layout=LAYOUT):
         self.map = dict()
         q = 0
@@ -137,7 +137,7 @@ class World:
         self.tiles = Map(game).map
         # remove random tiles so as to add obstacles
         # for k in self.tiles.copy():
-        #     if k not in starting_pos and random.random() > 0.86:
+        #     if k not in (cubic.Cube(2,1,-3), cubic.Cube(2,9,-11), cubic.Cube(19, -8, -11), cubic.Cube(19,0,-19)) and random.random() > 0.86:
         #         self.tiles.pop(k)
 
     # This method will need to be coupled with map generation,
@@ -150,7 +150,7 @@ class World:
     def generate_cities(self):
         for tile in self.tiles.values():
             if random.random() > 0.9:
-                tile.structures = "City"
+                tile.locality.type = "City"
 
     def add_starting_areas(self, players, flag="vanilla"):
         if flag == "vanilla":
@@ -158,12 +158,17 @@ class World:
             for player, pos in zip(players, starting_positions):
                 tile = self.tiles[pos]
                 tile.owner = player
-                tile.structures = "Capital"
+                tile.locality.type = "Capital"
+                player.starting_cube = pos
+
+                for neighbour in cubic.get_nearest_neighbours(pos):
+                    tile = self.tiles.get(neighbour)
+                    tile.owner = player
         else:
             for player in players:
                 starting_tile = random.choice(list(self.tiles.values()))
                 starting_tile.owner = player
-                starting_tile.structures = "Capital"
+                starting_tile.locality.type = "Capital"
 
     # def expand_borders(self):
     #     for cube, tile in self.tiles.copy().items():
@@ -173,6 +178,51 @@ class World:
     #             for neighbour in neighbours:
     #                 if neighbour.owner.id == "None":
     #                     neighbour.owner = tile.owner 
+
+    def train_armies(self):
+        for player in self.game.players:
+            tiles_owned_by_player = []
+            for tile in self.tiles.values():
+                if tile.owner == player:
+                    tiles_owned_by_player.append(tile)
+
+            # First apply base growth
+            for tile in tiles_owned_by_player:
+                if tile.army.manpower < army.MAX_STACK_SIZE:
+                    if tile.locality.type == "City": 
+                        tile.army.manpower += army.BASE_GROWTH_CITY
+                        tile.army.morale += 1/2 * army.BASE_GROWTH_CITY
+                    elif tile.locality.type == "Capital":
+                        tile.army.manpower += army.BASE_GROWTH_CAPITAL
+                        tile.army.morale += 1/2 * army.BASE_GROWTH_CAPITAL
+                    if tile.army.manpower > army.MAX_STACK_SIZE:
+                        diff = tile.army.manpower - army.MAX_STACK_SIZE
+                        tile.army.manpower = army.MAX_STACK_SIZE
+                        tile.army.morale -= 1/2 * diff
+                    if tile.army.morale > army.MAX_STACK_SIZE:
+                        tile.army.morale = army.MAX_STACK_SIZE
+
+            # Then apply bonus growth
+            player_bonus_growth = len(tiles_owned_by_player) * army.BONUS_GROWTH_PER_TILE
+            while player_bonus_growth > 0:
+                tiles_with_max_army_stack = 0
+                for tile in tiles_owned_by_player:
+                    if tile.locality.type != None and tile.army.manpower < army.MAX_STACK_SIZE:
+                        tile.army.manpower += 1
+                        tile.army.morale += 0.5
+                        player_bonus_growth -= 1
+                    else:
+                        tiles_with_max_army_stack += 1
+
+                    # break if we can't apply the bonus anywhere
+                    if len(tiles_owned_by_player) == tiles_with_max_army_stack:
+                        player_bonus_growth = 0
+                        break
+
+            # Round morale values
+            for tile in self.tiles.values():
+                tile.army.morale = min(army.MAX_STACK_SIZE, tile.army.morale)
+                tile.army.morale = round(tile.army.morale)
 
     def find_own_tile(self, player):
         own_tiles = []
@@ -194,55 +244,20 @@ class World:
             return False
         else: return True
 
-    def move_army(self, origin, target):
-        #assert isinstance(target, Tile)
-        origin[1].owner.actions -= 1
-        if (target[1].owner == None):
-            self.capture_tile(origin, target)
+    def check_victory_condition(self):
+        for player in self.game.players:
+            starting_tile = self.tiles.get(player.starting_cube)
+            if starting_tile.owner != player:       
+                self.game.defeat_player(player)
+                self.game.surrender_to_player(player, starting_tile.owner)
 
-        elif (target[1].owner == origin[1].owner):
-            target[1].army.manpower = origin[1].army.manpower + target[1].army.manpower
-            origin[1].army.manpower = 0
-            self.extend_borders(origin, target)
-        
-        else: self.combat_system(origin, target)
-
-    def combat_system(self, origin, target):
-        print(origin[1].owner, "attacks", target[1].owner, "with", origin[1].army.manpower, "against", target[1].army.manpower)
-        if origin[1].army.manpower > target[1].army.manpower:
-            origin[1].army.manpower -= target[1].army.manpower
-            target[1].army.manpower = 0
-            self.capture_tile(origin, target)
-        elif origin[1].army.manpower == target[1].army.manpower:
-            origin[1].army.manpower = 0
-            target[1].army.manpower = 1
-        else:
-            target[1].army.manpower -= origin[1].army.manpower
-            origin[1].army.manpower = 0
-
-    def capture_tile(self, origin, target):
-        print(origin[1].owner, "captures", target[0], 
-        "from", target[1].owner)
-
-        #check victory condition
-        if (target[1].structures == "Capital"):
-            self.game.defeat_player(target[1].owner)
-            self.game.surrender_to_player(target[1].owner, origin[1].owner)
-        else:
-            target[1].owner = origin[1].owner
-
-        target[1].army.manpower = origin[1].army.manpower
-        origin[1].army.manpower = 0
-
-        self.extend_borders(origin, target)
-
-
-    def extend_borders(self, origin, target):
-        neighbours_cube = cubic.get_nearest_neighbours(target[0])
-        neighbours = [self.tiles.get(x) for x in neighbours_cube if x in self.tiles]
-        for neighbour in neighbours:
-            if neighbour.army.manpower == 0 and neighbour.structures == None:
-                neighbour.owner = origin[1].owner
+        # for player in self.game.players:
+        #     for tile in self.tiles.values():
+        #         if tile.locality.type == "Capital":
+        #             self.game.defeat_player(player)
+        #             self.game.surrender_to_player(target[1].owner, origin[1].owner)
+        #         else:
+        #             target[1].owner = origin[1].owner
 
     def print_world_state(self):
         for tile in self.tiles.values():
