@@ -28,6 +28,13 @@ def update_screen(game):
     if selection != None: selection_cube = selection[0]
     for tilepair in game.world.tiles.items():
         draw.game_tile(context, tilepair)
+
+        # draw army.can_move indicator
+        cube, tile = tilepair
+        if selection == None:
+            if (tile.army and tile.army.can_move and tile.owner == game.current_player):
+                draw.legal_move_indicator(context, cube)
+
         draw.tile_army(context, tilepair)
         draw.tile_locality(context, tilepair)
 
@@ -35,8 +42,8 @@ def update_screen(game):
     draw.tile_selector(context, mousepos_cube)
     if selection_cube in game.world.tiles:
         #draw.tile_selector(context, mousepos_cube)
-        if game.world.tiles.get(selection_cube).army.manpower > 0:
-            for cube in cubic.get_all_neighbours(selection_cube, army.MAX_TRAVEL_DISTANCE):
+        if game.world.tiles.get(selection_cube).army:
+            for cube in cubic.reachable_cubes(game.world.tiles, selection_cube, army.MAX_TRAVEL_DISTANCE): #cubic.get_all_neighbours(selection_cube, army.MAX_TRAVEL_DISTANCE):
                 if cube in game.world.tiles:
                     draw.legal_move_indicator(context, cube)
 
@@ -49,7 +56,7 @@ def update_screen(game):
                 continue
 
             tile = game.world.tiles[cube]
-            if tile.army.manpower > 0 or tile.army.morale > 0:
+            if tile.army:
                 tilepair = cube, tile
                 draw.army_info(context, tilepair)
 
@@ -87,8 +94,15 @@ def run():
     while running:
         if game.current_player.actions == 0:
             turn += 1
+
+            # Reset army movement points
+            for tile in game.world.tiles.values():
+                if tile.army:
+                    tile.army.can_move = True
+
             if turn % len(game.players) == 1:
                 game.world.train_armies()
+
             update_screen(game)
 
             game.current_player = game.players[(turn - 1) % len(game.players)]
@@ -136,11 +150,14 @@ if __name__ == "__main__":
     sys.exit(run())
 
 # To do:
-# collision, water, AI, unit tiers, (camera: scrolling, panning, rotating), sprites, multiplayer
-# done: morale, fonts, unit growth, max stacks,
-# replace mousemotion event with mouse-changes-cube-coord event
-# bug: starting positions can overwrite one another
-# bug: player is defeated when ANY of his capitals are captured
-# feature: players release other players when defeated
-# feature: area controlled by a player expands each turn by 1 tile
-# feature: fog of war
+# Gameplay: water, AI, unit tiers, revolting nations, idle morale penalty, train player's armies immediatly after he ends his turn, 
+# Camera: scrolling, panning, rotating), 
+# Art: sprites, sounds, music, 
+# Multiplayer
+# Settings: map dimensions, map generation (bug: starting positions can overwrite one another), map seeds
+# Features: fog of war, border expansion
+# Code quality: replace mousemotion event with mouse-changes-cube-coord event
+# Bugs: draw legal_pos_indicators below units and localities, but above game tile
+# sort out alpha blending
+
+# Done: obstacles, army as databag class, legal_move_indicators as army.can_move indicators

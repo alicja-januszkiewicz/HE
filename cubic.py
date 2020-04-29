@@ -78,7 +78,7 @@ def get_all_neighbours(cube, order):
 
 def cube_lerp(a, b, t):
     return Cube(int(round(a.q * (1.0 - t) + b.q * t)),
-     int(round(a.r * (1.0 - t) + b.r * t)),
+    int(round(a.r * (1.0 - t) + b.r * t)),
     int(round(a.s * (1.0 - t) + b.s * t)))
 
 def cube_round(h):
@@ -138,6 +138,37 @@ def polygon_corners(layout, h):
         corners.append(Point(center.x + offset.x, center.y + offset.y))
     return corners
 
+# HE-specific functions
+
+def is_blocked(game_world, cube):
+    tile = game_world.get(cube)
+    if not tile:
+        return False
+    if tile.army or tile.locality.type != None:
+        return True
+    else: return False
+
+def reachable_cubes(game_world, start_cube, movement_range):
+    visited = set((start_cube,)) # set of cubes
+    fringes = [] # array of arrays of cubes
+    fringes.append([start_cube])
+
+    k = 1
+    while k <= movement_range: #1 < k <= movement_range
+        fringes.append([])
+        for cube in fringes[k-1]:
+            dir = 0
+            while dir < 6: #0 <= dir < 6
+                neighbour = get_neighbour(cube, dir)
+                if neighbour not in visited:
+                    # This way we also add obstacles themselves
+                    visited.add(neighbour)
+                    if not is_blocked(game_world, neighbour):
+                        fringes[k].append(neighbour)
+                dir += 1
+        k += 1
+    return visited
+
 # Tests
 
 def complain(name):
@@ -164,9 +195,6 @@ def test_layout():
     pointy = Layout(layout_pointy, Point(10.0, 15.0), Point(35.0, 71.0))
     equal_cube("layout", h, cube_round(pixel_to_cube(pointy, cube_to_pixel(pointy, h))))
 
-test_cube_round()
-test_layout()
-
 def test_get_all_neighbours():
     a = Cube(0,0,0)
     b = get_all_neighbours(a, 2)
@@ -174,6 +202,8 @@ def test_get_all_neighbours():
     print(a in b)
     print(Cube(-1,1,0) in b)
 
-test_get_all_neighbours()
+#test_cube_round()
+#test_layout()
+#test_get_all_neighbours()
 
 # print(cube_round(pixel_to_cube(Layout(layout_flat, Point(20,20), Point(0,0)), Point(200, 200))))

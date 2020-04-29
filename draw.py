@@ -58,7 +58,7 @@ def base_game_tile(context, tilepair):
 
 def tile_army(context, tilepair):
     cube, tile = tilepair
-    if tile.army.manpower > 0:
+    if tile.army:
         pos = cubic.cube_to_pixel(LAYOUT, cube)
         x, y = pos[0], pos[1]
         h = sin(pi/3)
@@ -77,13 +77,12 @@ def tile_locality(context, tilepair):
     r = sqrt(size.x**2 + size.y**2) / 5*sqrt(2)
     color = 0xFFDD0000
 
-    is_army_present = tile.army.manpower > 0
     if tile.locality.type == "City":
-        if (is_army_present == True):
+        if (tile.army):
             x += 2/3 * size.x
         circle(context, x, y, r/2, color)
     elif tile.locality.type == "Capital":
-        if (is_army_present == True):
+        if (tile.army):
             x += 2/3 * size.x
             r /= 2
         circle(context, x, y, r, color)
