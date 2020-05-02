@@ -7,17 +7,16 @@ import sdl2.ext
 import sdl2.sdlgfx
 
 import gfx
+import camera
 import cubic
 import army
 import logic
 import draw
 import data
 
-ZOOM_LEVEL = 50
-
 context = gfx.context
 
-def update_screen(game):
+def update_screen(game, layout):
     context.clear(0)
 
     selection = game.current_player.selection
@@ -27,25 +26,25 @@ def update_screen(game):
 
     if selection != None: selection_cube = selection[0]
     for tilepair in game.world.tiles.items():
-        draw.game_tile(context, tilepair)
+        draw.game_tile(context, layout, tilepair)
 
         # draw army.can_move indicator
         cube, tile = tilepair
         if selection == None:
             if (tile.army and tile.army.can_move and tile.owner == game.current_player):
-                draw.legal_move_indicator(context, cube)
+                draw.army_can_move_indicator(context, layout, cube)
 
-        draw.tile_army(context, tilepair)
-        draw.tile_locality(context, tilepair)
+        draw.tile_army(context, layout, tilepair)
+        draw.tile_locality(context, layout, tilepair)
 
     # draw army selector and legal move indicators
-    draw.tile_selector(context, mousepos_cube)
+    draw.tile_selector(context, layout, mousepos_cube)
     if selection_cube in game.world.tiles:
         #draw.tile_selector(context, mousepos_cube)
         if game.world.tiles.get(selection_cube).army:
             for cube in cubic.reachable_cubes(game.world.tiles, selection_cube, army.MAX_TRAVEL_DISTANCE): #cubic.get_all_neighbours(selection_cube, army.MAX_TRAVEL_DISTANCE):
                 if cube in game.world.tiles:
-                    draw.legal_move_indicator(context, cube)
+                    draw.legal_move_indicator(context, layout, cube)
 
     # draw army info
     if mousepos_cube in game.world.tiles:
@@ -58,7 +57,7 @@ def update_screen(game):
             tile = game.world.tiles[cube]
             if tile.army:
                 tilepair = cube, tile
-                draw.army_info(context, tilepair)
+                draw.army_info(context, layout, tilepair)
 
     # draw city names
     if mousepos_cube in game.world.tiles:
@@ -70,7 +69,7 @@ def update_screen(game):
 
             tile = game.world.tiles[cube]
             tilepair = cube, tile
-            draw.city_name(context, tilepair)
+            draw.city_name(context, layout, tilepair)
 
     context.present()
 
@@ -81,67 +80,61 @@ def get_pixel_mousepos():
 
 def get_cube_mousepos():
     pixel_mousepos = get_pixel_mousepos()
-    cube_mousepos = cubic.cube_round(cubic.pixel_to_cube(logic.LAYOUT, pixel_mousepos))
+    cube_mousepos = cubic.cube_round(cubic.pixel_to_cube(camera.get_layout(), pixel_mousepos))
     return cube_mousepos
 
+def processInput(game):
+    sdl2.SDL_PumpEvents()
+    keystatus = sdl2.SDL_GetKeyboardState(None)
+    if keystatus[sdl2.SDL_SCANCODE_W]:
+        print("the w key was pressed")
+    # continuous-response keys
+    if keystatus[sdl2.SDL_SCANCODE_LEFT]:
+        camera.pan(cubic.Point(1,0))
+    if keystatus[sdl2.SDL_SCANCODE_RIGHT]:
+        camera.pan(cubic.Point(-1,0))
+    if keystatus[sdl2.SDL_SCANCODE_UP]:
+        camera.pan(cubic.Point(0,1))
+    if keystatus[sdl2.SDL_SCANCODE_DOWN]:
+        camera.pan(cubic.Point(0,-1))
+
+    for event in sdl2.ext.get_events():
+        if event.type == sdl2.SDL_QUIT:
+            sdl2.ext.quit()
+
+        elif event.type == sdl2.SDL_MOUSEBUTTONDOWN and game.current_player.ai == False:
+            mousepos_cube = get_cube_mousepos()
+            selected_tile = game.world.tiles.get(mousepos_cube)
+            if selected_tile != None:
+                game.current_player.click_on_tile((mousepos_cube, selected_tile))
+
+        elif event.type == sdl2.SDL_MOUSEWHEEL:
+            camera.zoom(event.wheel.y)
+
 def run():
-    turn = 0
+    timeStepMs = 1000 / 30 # refresh rate eg. 30Hz
+
     game = logic.Game()
     game.current_player.actions = 0
-    old_cube_mousepos = None
+    timeCurrentMs = 0
+    timeAccumulatedMs = 0
+
+    layout = camera.get_layout()
 
     running = len(game.players) > 1
     while running:
-        if game.current_player.actions == 0:
-            turn += 1
+        timeLastMs = timeCurrentMs
+        timeCurrentMs = sdl2.SDL_GetTicks()
+        timeDeltaMs = timeCurrentMs - timeLastMs
+        timeAccumulatedMs += timeDeltaMs
 
-            # Reset army movement points
-            for tile in game.world.tiles.values():
-                if tile.army:
-                    tile.army.can_move = True
+        while (timeAccumulatedMs >= timeStepMs):
+            processInput(game)
+            logic.update_world(game)
+            running = len(game.players) > 1
+            timeAccumulatedMs -= timeStepMs
 
-            if turn % len(game.players) == 1:
-                game.world.train_armies()
-
-            update_screen(game)
-
-            game.current_player = game.players[(turn - 1) % len(game.players)]
-            game.current_player.actions = 5
-
-        # Force a player to skip a turn if he has no units to move
-        if game.world.check_for_army(game.current_player) == False:
-            game.current_player.actions = 0
-
-        # Let AI make a move
-        if game.current_player.ai == True and game.current_player.actions > 0:
-            logic.ai_controller(game.world, game.current_player)
-            update_screen(game)
-            sdl2.SDL_Delay(10)
-
-        for event in sdl2.ext.get_events():
-            if event.type == sdl2.SDL_QUIT:
-                running = False
-                sdl2.ext.quit()
-
-            if event.type == sdl2.SDL_MOUSEMOTION:
-                # mouse changes cube pos pseudo event
-                current_mousepos_cube = get_cube_mousepos()
-                if current_mousepos_cube != old_cube_mousepos:
-                    old_cube_mousepos = current_mousepos_cube
-                    update_screen(game)
-
-            if event.type == sdl2.SDL_MOUSEBUTTONDOWN and game.current_player.ai == False:
-                mousepos_cube = get_cube_mousepos()
-                selected_tile = game.world.tiles.get(mousepos_cube)
-                if selected_tile != None:
-                    game.current_player.click_on_tile((mousepos_cube, selected_tile))
-
-                update_screen(game)
-
-        if len(game.players) <= 1:
-            print(game.current_player, "wins!")
-            running = False
-            break
+        update_screen(game, layout)
 
     sdl2.ext.quit()
     return 0
@@ -150,14 +143,24 @@ if __name__ == "__main__":
     sys.exit(run())
 
 # To do:
-# Gameplay: water, AI, unit tiers, revolting nations, idle morale penalty, train player's armies immediatly after he ends his turn, 
-# Camera: scrolling, panning, rotating), 
-# Art: sprites, sounds, music, 
+# Gameplay: water, AI, unit tiers, releasing nations, train player's armies immediatly after he ends his turn, choosing starting nation
+# Camera: rotating 
+# Art: sprites, sounds, music, gradual fade-in of locality names
 # Multiplayer
-# Settings: map dimensions, map generation (bug: starting positions can overwrite one another), map seeds
-# Features: fog of war, border expansion
-# Code quality: replace mousemotion event with mouse-changes-cube-coord event
-# Bugs: draw legal_pos_indicators below units and localities, but above game tile
-# sort out alpha blending
+# Map editor
+# Campaign mode
+# UI: game menu, settings menu
+# Settings: map dimensions, map generation (bug: starting positions can overwrite one another), map seeds, variable no of players
+# Alternative ruleset: fog of war, border expansion
+# Code quality: decouple refresh rate from game speed
 
-# Done: obstacles, army as databag class, legal_move_indicators as army.can_move indicators
+# Bugs:
+# rounding error: 0/0 army still possible (possibly fixed)
+# floating point morale for some units after applying losing battle morale penalty (possibly fixed)
+# sometimes the human player seems to get two turns in a row
+# sort out alpha blending
+# very rarely legal move indicator gets stuck
+# negative morale spotted on a very large map
+# zooming may set layout.size to (0,0), causing the game to crash
+
+# Done: idle morale penalty, only tiles with localities have names, camera panning and rotating, worldgen, new main loop

@@ -1,21 +1,12 @@
 from math import floor, ceil
 import random
 
-from draw import LAYOUT
 import army
 import cubic
 import data
+import worldgen
 
-MAP_WIDTH = 20
-MAP_HEIGHT = 11
 ACTIONS_PER_TURN = 5
-
-class AttrDict(dict):
-    def __getattr__(self, name):
-        return self[name]
-
-    def __setattr__(self, name, value):
-        self[name] = value
 
 # A single Game() instance houses the game world and all players.
 class Game:
@@ -24,8 +15,6 @@ class Game:
         self.players = self.initialise_players()
         self.current_player = self.players[3]
         self.world = World(self)
-        self.world.generate_cities()
-        self.world.add_starting_areas(self.players)
 
     def initialise_players(self):
         players = []
@@ -98,80 +87,18 @@ class Player:
                 else: self.selection = None
         elif clicked_tile.army and clicked_tile.army.can_move:
             self.selection = tilepair
-
+        else:
+            self.selection = None
 
     def skip_turn(self):
         self.actions = 0
-
-
-class Tile:
-    def __init__(self, game):
-        self.game = game
-        self.owner = None #Player()
-        self.locality = AttrDict()
-        self.locality.type = None
-        self.locality.name = data.choose_random_city_name()
-        self.army = None
-
-    def __str__(self):
-        return str(self.locality.name) + " " + str(self.owner)# + " " + [self.army if self.army]
-
-    def combat_strength(self):
-        return self.army.manpower + self.army.morale
-
-
-class Map:
-    def __init__(self, game, layout=LAYOUT):
-        self.map = dict()
-        q = 0
-        while (q < MAP_WIDTH):
-            q += 1
-            q_offset = floor((q+1)/2) # or q>>1
-            r = -q_offset
-            while (r < MAP_HEIGHT - q_offset):
-                r += 1
-                self.map[(cubic.Cube(q, r, -q-r))] = Tile(game)
 
 
 # The game world is made of tiles. The tiles are mapped to cubic coordinates by using cubic coordinates as keys in the Map.map dictionary.
 class World:
     def __init__(self, game):
         self.game = game
-        self.tiles = Map(game).map
-        # remove random tiles so as to add obstacles
-        # for k in self.tiles.copy():
-        #     if k not in (cubic.Cube(2,1,-3), cubic.Cube(2,9,-11), cubic.Cube(19, -8, -11), cubic.Cube(19,0,-19)) and random.random() > 0.86:
-        #         self.tiles.pop(k)
-
-    # This method will need to be coupled with map generation,
-    # as to remove the need for the redundant search
-    def get_tile(self, pos):
-        for tile in self.tiles:
-            if (tile.x == pos[0] and tile.y == pos[1]):
-                return tile
-
-    def generate_cities(self):
-        for tile in self.tiles.values():
-            if random.random() > 0.9:
-                tile.locality.type = "City"
-
-    def add_starting_areas(self, players, flag="vanilla"):
-        if flag == "vanilla":
-            starting_positions = (cubic.Cube(2,1,-3), cubic.Cube(2,9,-11), cubic.Cube(19, -8, -11), cubic.Cube(19,0,-19))
-            for player, pos in zip(players, starting_positions):
-                tile = self.tiles[pos]
-                tile.owner = player
-                tile.locality.type = "Capital"
-                player.starting_cube = pos
-
-                for neighbour in cubic.get_nearest_neighbours(pos):
-                    tile = self.tiles.get(neighbour)
-                    tile.owner = player
-        else:
-            for player in players:
-                starting_tile = random.choice(list(self.tiles.values()))
-                starting_tile.owner = player
-                starting_tile.locality.type = "Capital"
+        self.tiles = worldgen.worldgen(shape='hexagon', radius=6, algorithm='random_ots', spawntype='random', players=self.game.players)#None
 
     # def expand_borders(self):
     #     for cube, tile in self.tiles.copy().items():
@@ -259,6 +186,11 @@ class World:
                 self.game.defeat_player(player)
                 self.game.surrender_to_player(player, starting_tile.owner)
 
+    def apply_idle_morale_penalty(self):
+        for tile in self.tiles.values():
+            if tile.army and tile.owner == self.game.current_player and tile.army.can_move:
+                tile.army.morale -= army.MORALE_PENALTY_IDLE_ARMY
+
     def print_world_state(self):
         for tile in self.tiles.values():
             if tile.army:
@@ -288,22 +220,37 @@ def ai_controller(world, player):
     player.click_on_tile(tiles)
 
 
-def run():
-    turn = 0
+def update_world(game):
+    if game.current_player.actions == 0:
+        game.turn += 1
+        print('turn:', game.turn, 'player', game.turn % 4)
 
+        # Reset army movement points
+        game.world.apply_idle_morale_penalty()
+        for tile in game.world.tiles.values():
+            if tile.army:
+                tile.army.can_move = True
+
+        if game.turn % len(game.players) == 1:
+            game.world.train_armies()
+
+        game.current_player = game.players[(game.turn - 1) % len(game.players)] # tutaj po pokonaniu gracza pętla sie pierdoli i moze dojsc do pominiecia czyjejs tury
+        game.current_player.actions = 5
+
+    # Force a player to skip a turn if he has no units to move
+    if game.world.check_for_army(game.current_player) == False:
+        game.current_player.actions = 0
+
+    # Let AI make a move
+    if game.current_player.ai == True and game.current_player.actions > 0:
+        ai_controller(game.world, game.current_player)
+
+    if len(game.players) <= 1:
+        print(game.current_player, "wins!")
+
+def main():
+    """For testing purposes"""
     game = Game()
+    game.current_player.actions = 0
     while len(game.players) > 1:
-        turn += 1
-        if turn >= 100000: break
-        for tile in game.world.tiles:
-            tile.train_army()
-        if (turn % 2 == 0):
-            print("Turn:", turn)
-            game.world.print_world_state()
-        for player in game.players:
-            player.actions = 5
-            if player.ai == True:
-                while player.actions > 0 and game.world.check_for_army(player):
-                    ai_controller(game.world.tiles, player)
-    for player in game.players:
-        print(player, "wins!")
+        update_world(game)

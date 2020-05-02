@@ -1,5 +1,7 @@
-import cubic
 from dataclasses import dataclass
+from math import ceil, floor
+
+import cubic
 
 MAX_TRAVEL_DISTANCE = 2
 MAX_STACK_SIZE = 99
@@ -21,6 +23,9 @@ class Army:
     manpower: int = 0
     morale: int = 0
     can_move: bool = True
+
+    def __str__(self):
+        return f'{self.manpower}/{self.morale}'
 
 def extend_borders(world_map, origin, target):
     # Find the cube key corresponding to the target tile
@@ -68,12 +73,8 @@ def issue_order(world_map, origin, target):
             extend_borders(world_map, origin, target)
 
 def move(origin, target):
-    #target.army.manpower = origin.army.manpower
-    #target.army.morale = origin.army.morale
     target.army = origin.army
     origin.army = None
-    #origin.army.manpower = 0
-    #origin.army.morale = 0
 
 def regroup(origin, target):
     sum = origin.army.manpower + target.army.manpower
@@ -94,15 +95,15 @@ def regroup(origin, target):
 
 def attack(tiles, origin, target):
     print(origin.owner, "attacks", target.owner, 
-    "with", origin.army.manpower, "/", origin.army.morale, 
-    "against", target.army.manpower, "/", target.army.morale)
+    "with", origin.army, "against", target.army)
 
     diff = origin.combat_strength() - target.combat_strength()
+    combat_strength_to_army = ceil(diff/2)
     if diff > 0:
         losing_player = target.owner
         manpower_lost = target.army.manpower
-        origin.army.manpower = round(diff/2)
-        origin.army.morale = diff/2
+        origin.army.manpower = combat_strength_to_army
+        origin.army.morale = combat_strength_to_army
         target.army = None
         capture_tile(tiles, origin, target)
     elif diff == 0:
@@ -114,9 +115,10 @@ def attack(tiles, origin, target):
     else:
         losing_player = origin.owner
         manpower_lost = origin.army.manpower
-        target.army.manpower = round(max(1, -diff/2))
-        target.army.morale = round(max(1, -diff/2))
+        target.army.manpower = max(1, -combat_strength_to_army)
+        target.army.morale = max(1, -combat_strength_to_army)
         origin.army = None
+    
     apply_morale_penalty_losing_combat(tiles, losing_player, manpower_lost)
 
 def calculate_minimum_morale(tiles, player):
@@ -124,15 +126,15 @@ def calculate_minimum_morale(tiles, player):
     for tile in tiles:
         if tile.owner == player and tile.army:
             total_manpower += tile.army.manpower
-    return total_manpower / 50
+    return floor(total_manpower / 50)
 
 def apply_morale_penalty_losing_combat(tiles, losing_player, manpower_lost):
-    penalty = MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE * manpower_lost
+    penalty = floor(MORALE_PENALTY_PER_MANPOWER_LOSING_BATTLE * manpower_lost)
     print("Player", losing_player, "suffers", penalty, "morale penalty")
     for tile in tiles:
         if tile.owner == losing_player and tile.army:
             minimum_morale = min(calculate_minimum_morale(tiles, losing_player),tile.army.manpower)
-            tile.army.morale = round(max(minimum_morale, tile.army.morale - penalty))
+            tile.army.morale = (max(minimum_morale, tile.army.morale - penalty))
 
 def capture_tile(tiles, origin, target):
     print(origin.owner, "captures", target, "from", target.owner)

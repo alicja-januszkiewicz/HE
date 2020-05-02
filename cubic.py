@@ -1,4 +1,5 @@
 from collections import namedtuple
+from dataclasses import dataclass
 from math import sin, cos, sqrt, pi#, floor, ceil
 
 # def round(value):
@@ -97,10 +98,24 @@ def cube_round(h):
             si = -qi - ri
     return Cube(qi, ri, si)
 
-Point = namedtuple("Point", ["x", "y"])
+ntPoint = namedtuple("Point", ["x", "y"])
 Orientation = namedtuple('Orientation', 
 ["f0", "f1", "f2", "f3", "b0", "b1", "b2", "b3", "start_angle"])
-Layout = namedtuple("Layout", ["orientation", "size", "origin"])
+ntLayout = namedtuple("Layout", ["orientation", "size", "origin"])
+
+@dataclass
+class Point:
+    x: int
+    y: int
+
+@dataclass
+class Layout:
+    orientation: Orientation
+    size: Point
+    origin: Point
+
+    # def __str__(self):
+    #     return f'{self.manpower}/{self.morale}'
 
 layout_pointy = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0, 
                             sqrt(3.0) / 3.0, -1.0 / 3.0, 0.0, 2.0 / 3.0, 0.5)
