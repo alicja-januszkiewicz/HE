@@ -1,166 +1,183 @@
-"""Honeycomb Empire!"""
-import sys, random
-from math import sin, pi, floor, sqrt
-import ctypes
+"""Honeycomb Empire: The main loop."""
+import sys
 
 import sdl2.ext
 import sdl2.sdlgfx
 
 import gfx
-import camera
 import cubic
-import army
-import logic
-import draw
-import data
+from game import Game
 
-context = gfx.context
-
-def update_screen(game, layout):
-    context.clear(0)
-
-    selection = game.current_player.selection
-    selection_cube = cubic.Cube(0,0,0)
-    #selection_cube = mousepos_cube
-    mousepos_cube = get_cube_mousepos()
-
-    if selection != None: selection_cube = selection[0]
-    for tilepair in game.world.tiles.items():
-        draw.game_tile(context, layout, tilepair)
-
-        # draw army.can_move indicator
-        cube, tile = tilepair
-        if selection == None:
-            if (tile.army and tile.army.can_move and tile.owner == game.current_player):
-                draw.army_can_move_indicator(context, layout, cube)
-
-        draw.tile_army(context, layout, tilepair)
-        draw.tile_locality(context, layout, tilepair)
-
-    # draw army selector and legal move indicators
-    draw.tile_selector(context, layout, mousepos_cube)
-    if selection_cube in game.world.tiles:
-        #draw.tile_selector(context, mousepos_cube)
-        if game.world.tiles.get(selection_cube).army:
-            for cube in cubic.reachable_cubes(game.world.tiles, selection_cube, army.MAX_TRAVEL_DISTANCE): #cubic.get_all_neighbours(selection_cube, army.MAX_TRAVEL_DISTANCE):
-                if cube in game.world.tiles:
-                    draw.legal_move_indicator(context, layout, cube)
-
-    # draw army info
-    if mousepos_cube in game.world.tiles:
-        range = set(cubic.get_all_neighbours(mousepos_cube, 2))
-        range.add(mousepos_cube)
-        for cube in range:
-            if cube not in game.world.tiles:
-                continue
-
-            tile = game.world.tiles[cube]
-            if tile.army:
-                tilepair = cube, tile
-                draw.army_info(context, layout, tilepair)
-
-    # draw city names
-    if mousepos_cube in game.world.tiles:
-        range = set(cubic.get_all_neighbours(mousepos_cube, 5))
-        range.add(mousepos_cube)
-        for cube in range:
-            if cube not in game.world.tiles:
-                continue
-
-            tile = game.world.tiles[cube]
-            tilepair = cube, tile
-            draw.city_name(context, layout, tilepair)
-
-    context.present()
-
-def get_pixel_mousepos():
-    x, y = ctypes.c_int(0), ctypes.c_int(0)
-    _ = sdl2.mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
-    return cubic.Point(x.value, y.value)
-
-def get_cube_mousepos():
-    pixel_mousepos = get_pixel_mousepos()
-    cube_mousepos = cubic.cube_round(cubic.pixel_to_cube(camera.get_layout(), pixel_mousepos))
-    return cube_mousepos
-
-def processInput(game):
-    sdl2.SDL_PumpEvents()
+def poll_inputs(game, camera):
+    """Listens for user input."""
+    sdl2.SDL_PumpEvents() # unsure if necessary
     keystatus = sdl2.SDL_GetKeyboardState(None)
-    if keystatus[sdl2.SDL_SCANCODE_W]:
-        print("the w key was pressed")
     # continuous-response keys
     if keystatus[sdl2.SDL_SCANCODE_LEFT]:
-        camera.pan(cubic.Point(1,0))
+        camera.pan(cubic.Point(1, 0))
     if keystatus[sdl2.SDL_SCANCODE_RIGHT]:
-        camera.pan(cubic.Point(-1,0))
+        camera.pan(cubic.Point(-1, 0))
     if keystatus[sdl2.SDL_SCANCODE_UP]:
-        camera.pan(cubic.Point(0,1))
+        camera.pan(cubic.Point(0, 1))
     if keystatus[sdl2.SDL_SCANCODE_DOWN]:
-        camera.pan(cubic.Point(0,-1))
+        camera.pan(cubic.Point(0, -1))
 
     for event in sdl2.ext.get_events():
         if event.type == sdl2.SDL_QUIT:
             sdl2.ext.quit()
 
-        elif event.type == sdl2.SDL_MOUSEBUTTONDOWN and game.current_player.ai == False:
-            mousepos_cube = get_cube_mousepos()
-            selected_tile = game.world.tiles.get(mousepos_cube)
-            if selected_tile != None:
-                game.current_player.click_on_tile((mousepos_cube, selected_tile))
+        elif (event.type == sdl2.SDL_MOUSEBUTTONDOWN
+              and not game.current_player.ai):
+            mousepos_cube = gfx.get_cube_mousepos(game.current_player.camera.layout)
+            mousepos_tile = game.world.get(mousepos_cube)
+            tilepair = mousepos_cube, mousepos_tile
+            if mousepos_cube in game.world:
+                print(mousepos_cube, mousepos_tile, mousepos_tile.owner)
+                if mousepos_tile.army:
+                    print(mousepos_tile.army, mousepos_tile.army.owner)
+                neighbours = str()
+                for neighbour in cubic.get_nearest_neighbours(mousepos_cube):
+                    neighbours += str(neighbour)
+                print('neighbours:', neighbours)
+            if mousepos_tile:
+                game.current_player.click_on_tile(tilepair)
 
         elif event.type == sdl2.SDL_MOUSEWHEEL:
             camera.zoom(event.wheel.y)
 
+def is_running(game):
+    """Returns False if there is one or less undefeated players."""
+    count = 0
+    for player in game.players:
+        if not player.is_defeated:
+            count += 1
+    if count > 1:
+        return True
+    return False
+
 def run():
-    timeStepMs = 1000 / 30 # refresh rate eg. 30Hz
+    """The main game loop.
 
-    game = logic.Game()
+    Credit: https://gamedev.stackexchange.com/questions/81767/
+    """
+    game = Game()
     game.current_player.actions = 0
-    timeCurrentMs = 0
-    timeAccumulatedMs = 0
+    camera = game.current_player.camera
 
-    layout = camera.get_layout()
+    minimum_fps = 40
+    target_pps = 100
+    target_tps = 1
+    target_fps = 60
 
-    running = len(game.players) > 1
-    while running:
-        timeLastMs = timeCurrentMs
-        timeCurrentMs = sdl2.SDL_GetTicks()
-        timeDeltaMs = timeCurrentMs - timeLastMs
-        timeAccumulatedMs += timeDeltaMs
+    # Time that must elapse before a new run
+    time_per_poll = 1000 / target_pps
+    time_per_tick = 1000/ target_tps
+    time_per_frame = 1000 / target_fps
+    max_frame_skip = (1000 / minimum_fps) / time_per_tick
 
-        while (timeAccumulatedMs >= timeStepMs):
-            processInput(game)
-            logic.update_world(game)
-            running = len(game.players) > 1
-            timeAccumulatedMs -= timeStepMs
+    achieved_pps = 0
+    achieved_fps = 0
+    achieved_tps = 0
 
-        update_screen(game, layout)
+    timer = sdl2.SDL_GetTicks()
 
-    sdl2.ext.quit()
-    return 0
+    loops = 0
+
+    achieved_loops = 0
+
+    curr_time = 0
+    loop_time = 0
+
+    accumulator_pps = 0
+    accumulator_tps = 0
+    accumulator_fps = 0
+
+    last_time = sdl2.SDL_GetTicks()
+
+    while is_running(game):
+        curr_time = sdl2.SDL_GetTicks()
+        loop_time = curr_time - last_time
+        last_time = curr_time
+
+        loops = 0
+
+        accumulator_pps += loop_time
+        accumulator_tps += loop_time
+        accumulator_fps += loop_time
+
+        if accumulator_pps >= time_per_poll:
+            poll_inputs(game, camera)
+            # player logic goes here
+            achieved_pps += 1
+            accumulator_pps -= time_per_poll
+
+        while accumulator_tps >= time_per_tick and loops < max_frame_skip:
+            game.update_world()
+            achieved_tps += 1
+            accumulator_tps -= time_per_tick
+            loops += 1
+
+        # Max 1 render per loop so player movement stays fluent
+        if accumulator_fps >= time_per_frame:
+            gfx.update_screen(game, camera)
+            achieved_fps += 1
+            accumulator_fps -= time_per_frame
+
+        if timer - sdl2.SDL_GetTicks() < 1000:
+            timer += 1000
+            print(achieved_tps, "TPS,", achieved_fps, "FPS,",
+                  achieved_pps, "Polls,", achieved_loops, " Loops")
+            achieved_tps = 0
+            achieved_fps = 0
+            achieved_pps = 0
+            achieved_loops = 0
+
+        achieved_loops += 1
 
 if __name__ == "__main__":
     sys.exit(run())
 
 # To do:
-# Gameplay: water, AI, unit tiers, releasing nations, train player's armies immediatly after he ends his turn, choosing starting nation
-# Camera: rotating 
+# Finish off playergen and worldgen modules
+# Gameplay: water, unit tiers, releasing nations, choosing a starting nation
+# Camera: rotating, better camera boundary calculation
 # Art: sprites, sounds, music, gradual fade-in of locality names
 # Multiplayer
 # Map editor
 # Campaign mode
 # UI: game menu, settings menu
-# Settings: map dimensions, map generation (bug: starting positions can overwrite one another), map seeds, variable no of players
+# Settings: map dimensions, map generation (bug: starting positions can overwrite one another), map seeds, player generation, colors
 # Alternative ruleset: fog of war, border expansion
-# Code quality: decouple refresh rate from game speed
+# AI: more efficient, more skilled
+# Spinoff idea: encircling enemy armies liquidates them. Cutting an army off from supply lines (cities) drains manpower. New mobile units. Terrain defense modifiers. Semi-automatic railroad transport system.
 
 # Bugs:
-# rounding error: 0/0 army still possible (possibly fixed)
-# floating point morale for some units after applying losing battle morale penalty (possibly fixed)
-# sometimes the human player seems to get two turns in a row
-# sort out alpha blending
-# very rarely legal move indicator gets stuck
-# negative morale spotted on a very large map
-# zooming may set layout.size to (0,0), causing the game to crash
+# sort out alpha blending (most likely not possible in sld.gfx - will need to switch to openGL eventually)
+# zooming in clips locality names
 
-# Done: idle morale penalty, only tiles with localities have names, camera panning and rotating, worldgen, new main loop
+# Code quality:
+# cubic.Cube as a dataclass?
+# type hinting
+# docstrings
+# 140 pylint issues left to resolve
+
+# Done:
+# Improved AI, but very inefficient
+# Added some docstrings
+# Many pylint code quality issues solved
+# Merged Game and World classes into one Game class
+# Rewrote the click_on_tile Player method
+# Transformed regular classes into dataclasses where appropriate
+# Player armies are now trained immediatly after the player's turn ends.
+# Drawing is now only performed on pixels within camera range (mostly)
+# Rendering rate decoupled from the tick rate (to some extent)
+# Playergen module which generates players with randomly assigned colors.
+# bugfix: negative morale by applying idle army penalty
+# bugfix: double turns after defeating a player
+# bugfix: stuck legal move indicator
+# bugfix: negative morale
+# bugfix: zooming could set layout.size to (0,0), causing division by zero error
+# bugfix: extending borders now works every time (this bug was caused by a reverse dict lookup)
+# bugfix: a rounding error allowing a 0/0 army to persist
+# bugfix: floating point morale for some units after applying losing battle morale penalty
+# bugfix: morale could surpass max value due to faulty 'minimum morale per 50 manpower' implementation

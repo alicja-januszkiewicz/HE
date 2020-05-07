@@ -1,3 +1,4 @@
+"""Cubic coordinate system library"""
 from collections import namedtuple
 from dataclasses import dataclass
 from math import sin, cos, sqrt, pi#, floor, ceil
@@ -10,6 +11,7 @@ from math import sin, cos, sqrt, pi#, floor, ceil
 #         return ceil(value)
 
 class Cube():
+    """Cubic coordinate class"""
     def __init__(self, q, r, s):
         self.q = q
         self.r = r
@@ -18,11 +20,12 @@ class Cube():
 
     def __eq__(self, other):
         t = isinstance(other, Cube)
-        if not t: return False
+        if not t:
+            return False
         q = self.q == other.q
         r = self.r == other.r
         s = self.s == other.s
-        return(q and r and s)
+        return q and r and s
 
     def __str__(self):
         return str((self.q, self.r, self.s))
@@ -34,17 +37,13 @@ class Cube():
         q = self.q + other.q
         r = self.r + other.r
         s = self.s + other.s
-        return(Cube(q,r,s))
+        return Cube(q, r, s)
 
     def __sub__(self, other):
         q = self.q - other.q
         r = self.r - other.r
         s = self.s - other.s
-        return(Cube(q,r,s))
-
-    def get_coord(self):
-        return self.q, self.r, self.s
-
+        return Cube(q, r, s)
 
 def cube_length(cube):
     return int((abs(cube.q) + abs(cube.r) + abs(cube.s)) / 2)
@@ -54,10 +53,9 @@ def cube_distance(cube_a, cube_b):
 
 def cube_direction(direction):
     cube_directions = (
-    Cube(+1, -1, 0), Cube(+1, 0, -1), Cube(0, +1, -1), 
-    Cube(-1, +1, 0), Cube(-1, 0, +1), Cube(0, -1, +1), 
-)
-    assert (0 <= direction and direction < 6)
+        Cube(+1, -1, 0), Cube(+1, 0, -1), Cube(0, +1, -1),
+        Cube(-1, +1, 0), Cube(-1, 0, +1), Cube(0, -1, +1),)
+    assert 0 <= direction < 6
     return cube_directions[direction]
 
 def get_neighbour(cube, direction):
@@ -70,7 +68,7 @@ def get_nearest_neighbours(cube):
     return neighbours
 
 def get_all_neighbours(cube, order):
-    neighbours = set( (cube,) )
+    neighbours = set((cube,))
     for _ in range(order):
         for neighbour in neighbours.copy():
             i = set(get_nearest_neighbours(neighbour))
@@ -79,8 +77,8 @@ def get_all_neighbours(cube, order):
 
 def cube_lerp(a, b, t):
     return Cube(int(round(a.q * (1.0 - t) + b.q * t)),
-    int(round(a.r * (1.0 - t) + b.r * t)),
-    int(round(a.s * (1.0 - t) + b.s * t)))
+                int(round(a.r * (1.0 - t) + b.r * t)),
+                int(round(a.s * (1.0 - t) + b.s * t)))
 
 def cube_round(h):
     qi = int(round(h.q))
@@ -99,7 +97,7 @@ def cube_round(h):
     return Cube(qi, ri, si)
 
 ntPoint = namedtuple("Point", ["x", "y"])
-Orientation = namedtuple('Orientation', 
+Orientation = namedtuple('Orientation',
 ["f0", "f1", "f2", "f3", "b0", "b1", "b2", "b3", "start_angle"])
 ntLayout = namedtuple("Layout", ["orientation", "size", "origin"])
 
@@ -114,10 +112,7 @@ class Layout:
     size: Point
     origin: Point
 
-    # def __str__(self):
-    #     return f'{self.manpower}/{self.morale}'
-
-layout_pointy = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0, 
+layout_pointy = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0,
                             sqrt(3.0) / 3.0, -1.0 / 3.0, 0.0, 2.0 / 3.0, 0.5)
 layout_flat = Orientation(3.0 / 2.0, 0.0, sqrt(3.0) / 2.0, sqrt(3.0),
                           2.0 / 3.0, 0.0, -1.0 / 3.0, sqrt(3.0) / 3.0, 0.0)
@@ -145,9 +140,9 @@ def cube_corner_offset(layout, corner):
     angle = 2.0 * pi * (M.start_angle - corner) / 6.0
     return Point(size.x * cos(angle), size.y * sin(angle))
 
-def polygon_corners(layout, h):
+def polygon_corners(layout, cube):
     corners = []
-    center = cube_to_pixel(layout, h)
+    center = cube_to_pixel(layout, cube)
     for i in range(0, 6):
         offset = cube_corner_offset(layout, i)
         corners.append(Point(center.x + offset.x, center.y + offset.y))
@@ -158,13 +153,12 @@ def polygon_corners(layout, h):
 def is_blocked(game_world, cube):
     tile = game_world.get(cube)
     if not tile:
-        return False
-    if tile.army or tile.locality.type != None:
         return True
-    else: return False
+    return bool(tile.army or tile.locality)
 
-def reachable_cubes(game_world, start_cube, movement_range):
+def get_reachable_cubes(game_world, start_cube, movement_range):
     visited = set((start_cube,)) # set of cubes
+    #visited = set() # set of cubes
     fringes = [] # array of arrays of cubes
     fringes.append([start_cube])
 
@@ -172,16 +166,18 @@ def reachable_cubes(game_world, start_cube, movement_range):
     while k <= movement_range: #1 < k <= movement_range
         fringes.append([])
         for cube in fringes[k-1]:
-            dir = 0
-            while dir < 6: #0 <= dir < 6
-                neighbour = get_neighbour(cube, dir)
+            direction = 0
+            while direction < 6: #0 <= direction < 6
+                neighbour = get_neighbour(cube, direction)
                 if neighbour not in visited:
-                    # This way we also add obstacles themselves
-                    visited.add(neighbour)
+                    # This way we also add obstacles themselves, if they exist
+                    if game_world.get(neighbour):
+                        visited.add(neighbour)
                     if not is_blocked(game_world, neighbour):
                         fringes[k].append(neighbour)
-                dir += 1
+                direction += 1
         k += 1
+    visited.remove(start_cube)
     return visited
 
 # Tests
@@ -211,11 +207,11 @@ def test_layout():
     equal_cube("layout", h, cube_round(pixel_to_cube(pointy, cube_to_pixel(pointy, h))))
 
 def test_get_all_neighbours():
-    a = Cube(0,0,0)
+    a = Cube(0, 0, 0)
     b = get_all_neighbours(a, 2)
     print(b)
     print(a in b)
-    print(Cube(-1,1,0) in b)
+    print(Cube(-1, 1, 0) in b)
 
 #test_cube_round()
 #test_layout()

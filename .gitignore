@@ -1,3 +1,6 @@
 __pycache__
 resources/unused
+unused
 legacy.py
+env
+.pylintrc
