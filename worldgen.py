@@ -11,7 +11,9 @@ import cubic
 import data
 # from playergen import Player
 
-layout = cubic.Layout(cubic.layout_pointy, cubic.Point(50, 50), cubic.Point(800, 550))
+#layout = cubic.Layout(cubic.orientation_pointy, cubic.Point(50, 50), cubic.Point(800, 550))
+layout = cubic.Layout(cubic.orientation_pointy, cubic.Point(.02, .02), cubic.Point(.2, 0))
+#layout = cubic.Layout(cubic.orientation_pointy, cubic.Point(1, 1), cubic.Point(0, 0))
 
 @dataclass
 class Locality:
@@ -51,7 +53,7 @@ def align_hex_top_left(radius):
     factor = sqrt(3)/2
     r = cubic.Point(layout.size.x * factor, layout.size.y * factor)
     R = cubic.Point(layout.size.x, layout.size.y)
-    if layout.orientation == cubic.layout_pointy:
+    if layout.orientation == cubic.orientation_pointy:
         x = (2 * r.x * radius) - r.x
         # every 4 tiles skip one R
         y = (2 * R.y * radius) - (2 * R.y * radius/4) + R.y
@@ -65,7 +67,7 @@ def shape_classic():
     """Generates a cube:tile dict to be used as the game world map,
     identical to the original hex empire 1 world map. Returns the dict.
     """
-    layout.orientation = cubic.layout_flat
+    layout.orientation = cubic.orientation_flat
     layout.origin = cubic.Point(-10, 10)
     MAP_WIDTH = 20
     MAP_HEIGHT = 11
@@ -83,7 +85,7 @@ def shape_classic():
 def shape_hexagon(map_radius):
     """Generates a cube:tile dictionary with a hexagonal shape.
     Returns the dictionary."""
-    align_hex_top_left(map_radius)
+    #align_hex_top_left(map_radius)
     world_map = dict()
     q = -map_radius
     while q <= map_radius:

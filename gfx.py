@@ -32,6 +32,31 @@ sprite_factory = sdl2.ext.SpriteFactory(sdl2.ext.TEXTURE, renderer=context)
 
 import draw
 
+experimental_surface = sdl2.SDL_CreateRGBSurface(0, SCREEN_WIDTH, SCREEN_HEIGHT, 32, 0,0,0,0)
+experimental_renderer = sdl2.SDL_CreateSoftwareRenderer(experimental_surface)
+
+def experimental_tiles(visible_world, layout):
+    sdl2.SDL_SetRenderDrawColor(experimental_renderer, 0x00, 0x00, 0x00, 0xFF)
+    sdl2.SDL_RenderClear(experimental_renderer)
+    sdl2.SDL_SetRenderDrawColor(experimental_renderer, 0xAA, 0xAA, 0xAA, 0xFF)
+    for tilepair in visible_world.items():
+        cube, tile = tilepair
+        if tile.owner is None:
+            color = (255, 255, 255)
+        else:
+            color = tile.owner.color
+        draw.hexagon_rgba2(experimental_renderer, layout, cube, color)
+        # coords = cubic.cube_to_pixel(layout, cube)
+        # rect = sdl2.SDL_Rect(int(coords.x), int(coords.y), layout.size.x, layout.size.y)
+        # #sdl2.SDL_RenderFillRect(experimental_renderer, rect)
+        # for i in range(layout.size.y):
+        #     sdl2.SDL_RenderDrawLine(experimental_renderer, int(coords.x), int(coords.y)+i, int(coords.x)+layout.size.x, int(coords.y)+i)
+    texture = sdl2.SDL_CreateTextureFromSurface(context.renderer, experimental_surface)
+    context.copy(texture.contents)
+    sdl2.SDL_DestroyTexture(texture)
+    #sdl2.SDL_FreeSurface(experimental_surface)
+
+
 def get_pixel_mousepos():
     """Returns the mouse position in pixel coordinates."""
     x, y = ctypes.c_int(0), ctypes.c_int(0)
@@ -124,8 +149,10 @@ def update_screen(game, camera):
         tile = game.world.get(cube)
         if tile:
             visible_world[cube] = tile
+    # visible_world = game.world
 
-    update_tile(visible_world, layout)
+    #update_tile(visible_world, layout)
+    experimental_tiles(visible_world, layout)
     update_army_can_move_indicator(game, visible_world, layout, selection)
     update_tile_overlay(visible_world, layout)
     draw.tile_selector(context, layout, mousepos_cube)

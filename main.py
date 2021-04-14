@@ -1,34 +1,47 @@
 """Honeycomb Empire: The main loop."""
 import sys
+import ctypes
 
 import sdl2.ext
-import sdl2.sdlgfx
 
-import gfx
+import opengl
+#import gfx
 import cubic
 from game import Game
 
+def get_pixel_mousepos():
+    """Returns the mouse position in pixel coordinates."""
+    x, y = ctypes.c_int(0), ctypes.c_int(0)
+    _ = sdl2.mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
+    return cubic.Point(x.value, y.value)
+
+def get_cube_mousepos(layout):
+    """Returns the mouse position in cubic coordinates."""
+    pixel_mousepos = get_pixel_mousepos()
+    cube_mousepos = cubic.pixel_to_cube(layout, pixel_mousepos) # 3 floats
+    nearest_cube = cubic.cube_round(cube_mousepos)
+    return nearest_cube
+
 def poll_inputs(game, camera):
     """Listens for user input."""
-    sdl2.SDL_PumpEvents() # unsure if necessary
-    keystatus = sdl2.SDL_GetKeyboardState(None)
-    # continuous-response keys
-    if keystatus[sdl2.SDL_SCANCODE_LEFT]:
-        camera.pan(cubic.Point(1, 0))
-    if keystatus[sdl2.SDL_SCANCODE_RIGHT]:
-        camera.pan(cubic.Point(-1, 0))
-    if keystatus[sdl2.SDL_SCANCODE_UP]:
-        camera.pan(cubic.Point(0, 1))
-    if keystatus[sdl2.SDL_SCANCODE_DOWN]:
-        camera.pan(cubic.Point(0, -1))
+
+    # event = sdl2.SDL_MOUSEWHEEL
+    # event = sdl2.SDL_Event(sdl2.SDL_MOUSEWHEEL)
+    # while sdl2.SDL_PollEvent(ctypes.byref(event)) != 0:
+    #     camera.zoom(event.wheel.y)
 
     for event in sdl2.ext.get_events():
+        #print(event)
         if event.type == sdl2.SDL_QUIT:
             sdl2.ext.quit()
 
+        elif event.type == sdl2.SDL_MOUSEWHEEL:
+            print('zoom2')
+            camera.zoom(event.wheel.y)
+
         elif (event.type == sdl2.SDL_MOUSEBUTTONDOWN
-              and not game.current_player.ai):
-            mousepos_cube = gfx.get_cube_mousepos(game.current_player.camera.layout)
+            and not game.current_player.ai):
+            mousepos_cube = get_cube_mousepos(game.current_player.camera.layout)
             mousepos_tile = game.world.get(mousepos_cube)
             tilepair = mousepos_cube, mousepos_tile
             if mousepos_cube in game.world:
@@ -39,11 +52,22 @@ def poll_inputs(game, camera):
                 for neighbour in cubic.get_nearest_neighbours(mousepos_cube):
                     neighbours += str(neighbour)
                 print('neighbours:', neighbours)
+            else:
+                print('clic')
             if mousepos_tile:
                 game.current_player.click_on_tile(tilepair)
 
-        elif event.type == sdl2.SDL_MOUSEWHEEL:
-            camera.zoom(event.wheel.y)
+    #sdl2.SDL_PumpEvents() # unsure if necessary
+    keystatus = sdl2.SDL_GetKeyboardState(None)
+    # continuous-response keys
+    if keystatus[sdl2.SDL_SCANCODE_LEFT]:
+        camera.pan(cubic.Point(1, 0))
+    if keystatus[sdl2.SDL_SCANCODE_RIGHT]:
+        camera.pan(cubic.Point(-1, 0))
+    if keystatus[sdl2.SDL_SCANCODE_UP]:
+        camera.pan(cubic.Point(0, 1))
+    if keystatus[sdl2.SDL_SCANCODE_DOWN]:
+        camera.pan(cubic.Point(0, -1))
 
 def is_running(game):
     """Returns False if there is one or less undefeated players."""
@@ -63,11 +87,12 @@ def run():
     game = Game()
     game.current_player.actions = 0
     camera = game.current_player.camera
+    vao = opengl.init(game, camera)
 
-    minimum_fps = 40
-    target_pps = 100
+    minimum_fps = 30
+    target_pps = 60
     target_tps = 1
-    target_fps = 60
+    target_fps = 59
 
     # Time that must elapse before a new run
     time_per_poll = 1000 / target_pps
@@ -105,11 +130,13 @@ def run():
         accumulator_tps += loop_time
         accumulator_fps += loop_time
 
-        if accumulator_pps >= time_per_poll:
-            poll_inputs(game, camera)
-            # player logic goes here
-            achieved_pps += 1
-            accumulator_pps -= time_per_poll
+        poll_inputs(game, camera)
+
+        # if accumulator_pps >= time_per_poll:
+        #     poll_inputs(game, camera)
+        #     # player logic goes here
+        #     achieved_pps += 1
+        #     accumulator_pps -= time_per_poll
 
         while accumulator_tps >= time_per_tick and loops < max_frame_skip:
             game.update_world()
@@ -119,7 +146,10 @@ def run():
 
         # Max 1 render per loop so player movement stays fluent
         if accumulator_fps >= time_per_frame:
-            gfx.update_screen(game, camera)
+            #gfx.update_screen(game, camera)
+            #print('tpf: ', time_per_frame)
+            #print('acc fps: ', accumulator_fps)
+            opengl.update_screen(vao, camera, game.world)
             achieved_fps += 1
             accumulator_fps -= time_per_frame
 
@@ -160,24 +190,3 @@ if __name__ == "__main__":
 # type hinting
 # docstrings
 # 140 pylint issues left to resolve
-
-# Done:
-# Improved AI, but very inefficient
-# Added some docstrings
-# Many pylint code quality issues solved
-# Merged Game and World classes into one Game class
-# Rewrote the click_on_tile Player method
-# Transformed regular classes into dataclasses where appropriate
-# Player armies are now trained immediatly after the player's turn ends.
-# Drawing is now only performed on pixels within camera range (mostly)
-# Rendering rate decoupled from the tick rate (to some extent)
-# Playergen module which generates players with randomly assigned colors.
-# bugfix: negative morale by applying idle army penalty
-# bugfix: double turns after defeating a player
-# bugfix: stuck legal move indicator
-# bugfix: negative morale
-# bugfix: zooming could set layout.size to (0,0), causing division by zero error
-# bugfix: extending borders now works every time (this bug was caused by a reverse dict lookup)
-# bugfix: a rounding error allowing a 0/0 army to persist
-# bugfix: floating point morale for some units after applying losing battle morale penalty
-# bugfix: morale could surpass max value due to faulty 'minimum morale per 50 manpower' implementation

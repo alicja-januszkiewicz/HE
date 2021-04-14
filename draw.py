@@ -43,6 +43,21 @@ def hexagon_rgba(context, layout, cube, color):
     sdl2.sdlgfx.filledPolygonRGBA(context.sdlrenderer, xptr, yptr,
                                   n, color.r, color.g, color.b, 120)
 
+def hexagon_rgba2(context, layout, cube, color):
+    corners = cubic.polygon_corners(layout, cube)
+    n = len(corners)
+
+    # Casting to ctypes
+    xlist, ylist = (sdl2.Sint16 * n)(), (sdl2.Sint16 * n)()
+    for i, corner in enumerate(corners):
+        xlist[i] = int(floor(corner.x))
+        ylist[i] = int(floor(corner.y))
+    xptr = ctypes.cast(xlist, ctypes.POINTER(sdl2.Sint16))
+    yptr = ctypes.cast(ylist, ctypes.POINTER(sdl2.Sint16))
+
+    sdl2.sdlgfx.filledPolygonRGBA(context, xptr, yptr,
+                                  n, color[0], color[1], color[2], 120)
+
 def hexagon_black(context, layout, cube):
     corners = cubic.polygon_corners(layout, cube)
     n = len(corners)

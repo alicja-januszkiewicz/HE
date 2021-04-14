@@ -28,7 +28,7 @@ class Game:
         self.playergen = itertools.cycle(self.players)
         self.current_player = self.players[0]
         #self.world = worldgen.generate_world(shape='classic', radius=6, algorithm='random_ots', spawntype='classic', players=self.players)
-        self.world = worldgen.generate_world(shape='hexagon', radius=20, algorithm='random_ots', spawntype='random', players=self.players)
+        self.world = worldgen.generate_world(shape='hexagon', radius=60, algorithm='random_ots', spawntype='random', players=self.players)
         self.initial_layout = worldgen.layout
         playergen.create_player_cameras(self)
 
@@ -81,6 +81,8 @@ class Game:
                 tile.owner = player
 
     def train_armies(self):
+        """Trains appropriate armies for every player.
+        To be called at the end of every turn by the update_world() method."""
         player = self.current_player
         tiles_owned_by_player = []
         for tile in self.world.values():

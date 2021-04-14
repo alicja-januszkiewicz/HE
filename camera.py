@@ -2,7 +2,10 @@
 #from math import ceil
 
 import cubic
-from gfx import SCREEN_WIDTH, SCREEN_HEIGHT
+#from gfx import SCREEN_WIDTH, SCREEN_HEIGHT
+
+SCREEN_WIDTH = 1920 # 2048
+SCREEN_HEIGHT = 1080 # 1152
 
 class Camera:
     """The Camera allows a Player to change their view."""
@@ -16,24 +19,24 @@ class Camera:
         """Camera pan."""
         x = direction.x
         y = direction.y
-        x *= self.layout.size.x
-        y *= self.layout.size.y
+        x *= self.layout.size.x / 1000
+        y *= self.layout.size.y / 1000
         self.layout.origin.x += x
         self.layout.origin.y += y
 
-        self.update_boundary()
+        #self.update_boundary()
 
     def zoom(self, sign):
         """Camera zoom."""
-        self.layout.size.x += sign
-        self.layout.size.x = max(self.layout.size.x, 1)
-        self.layout.size.x = min(self.layout.size.x, 100)
+        self.layout.size.x += sign/50
+        self.layout.size.x = max(self.layout.size.x, 0.01)
+        self.layout.size.x = min(self.layout.size.x, 1)
 
-        self.layout.size.y += sign
-        self.layout.size.y = max(self.layout.size.y, 1)
-        self.layout.size.y = min(self.layout.size.y, 100)
+        self.layout.size.y += sign/50
+        self.layout.size.y = max(self.layout.size.y, 0.01)
+        self.layout.size.y = min(self.layout.size.y, 1)
 
-        self.update_boundary()
+        #self.update_boundary()
 
     def update_boundary(self):
         """Calculate cubes within screen bounds."""
@@ -42,7 +45,7 @@ class Camera:
         bottom_right_pixel = cubic.Point(SCREEN_WIDTH, SCREEN_HEIGHT)
         bottom_right_cube = cubic.pixel_to_cube(self.layout, bottom_right_pixel)
         self.boundary.clear()
-        if self.layout.orientation == cubic.layout_pointy:
+        if self.layout.orientation == cubic.orientation_pointy:
             for cube in self.world:
                 if(top_left_cube.q <= cube.q <= bottom_right_cube.q
                    or top_left_cube.r <= cube.r <= bottom_right_cube.r

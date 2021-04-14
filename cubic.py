@@ -112,17 +112,18 @@ class Layout:
     size: Point
     origin: Point
 
-layout_pointy = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0,
-                            sqrt(3.0) / 3.0, -1.0 / 3.0, 0.0, 2.0 / 3.0, 0.5)
-layout_flat = Orientation(3.0 / 2.0, 0.0, sqrt(3.0) / 2.0, sqrt(3.0),
-                          2.0 / 3.0, 0.0, -1.0 / 3.0, sqrt(3.0) / 3.0, 0.0)
 
-def cube_to_pixel(layout, h):
+orientation_pointy = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0,
+                                 sqrt(3.0) / 3.0, -1.0 / 3.0, 0.0, 2.0 / 3.0, 0.5)
+orientation_flat = Orientation(3.0 / 2.0, 0.0, sqrt(3.0) / 2.0, sqrt(3.0),
+                               2.0 / 3.0, 0.0, -1.0 / 3.0, sqrt(3.0) / 3.0, 0.0)
+
+def cube_to_pixel(layout, cube):
     M = layout.orientation
     size = layout.size
     origin = layout.origin
-    x = (M.f0 * h.q + M.f1 * h.r) * size.x
-    y = (M.f2 * h.q + M.f3 * h.r) * size.y
+    x = (M.f0 * cube.q + M.f1 * cube.r) * size.x
+    y = (M.f2 * cube.q + M.f3 * cube.r) * size.y
     return Point(x + origin.x, y + origin.y)
 
 def pixel_to_cube(layout, p):
@@ -213,8 +214,9 @@ def test_get_all_neighbours():
     print(a in b)
     print(Cube(-1, 1, 0) in b)
 
-#test_cube_round()
-#test_layout()
-#test_get_all_neighbours()
+
+# test_cube_round()
+# test_layout()
+# test_get_all_neighbours()
 
 # print(cube_round(pixel_to_cube(Layout(layout_flat, Point(20,20), Point(0,0)), Point(200, 200))))
