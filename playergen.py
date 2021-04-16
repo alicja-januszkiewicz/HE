@@ -72,6 +72,7 @@ class Player:
             self.selection = tilepair
         else:
             self.selection = None
+            #self.selection = tilepair
 
     def skip_turn(self):
         self.actions = 0

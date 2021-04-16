@@ -3,9 +3,10 @@
 
 import cubic
 #from gfx import SCREEN_WIDTH, SCREEN_HEIGHT
-
-SCREEN_WIDTH = 1920 # 2048
-SCREEN_HEIGHT = 1080 # 1152
+#from opengl import SCREEN_WIDTH, SCREEN_HEIGHT
+SCREEN_WIDTH, SCREEN_HEIGHT = (1920,1440)
+# SCREEN_WIDTH = 1920 # 2048
+# SCREEN_HEIGHT = 1080 # 1152
 
 class Camera:
     """The Camera allows a Player to change their view."""
@@ -28,11 +29,13 @@ class Camera:
 
     def zoom(self, sign):
         """Camera zoom."""
-        self.layout.size.x += sign/50
+        self.layout.size.x += sign/150
+        #self.layout.origin.x += sign/100
         self.layout.size.x = max(self.layout.size.x, 0.01)
         self.layout.size.x = min(self.layout.size.x, 1)
 
-        self.layout.size.y += sign/50
+        self.layout.size.y += sign/150
+        #self.layout.origin.y += sign/50
         self.layout.size.y = max(self.layout.size.y, 0.01)
         self.layout.size.y = min(self.layout.size.y, 1)
 

@@ -1,7 +1,9 @@
 """Honeycomb Empire: The main loop."""
 import sys
 import ctypes
+import time
 
+import sdl2
 import sdl2.ext
 
 import opengl
@@ -15,11 +17,20 @@ def get_pixel_mousepos():
     _ = sdl2.mouse.SDL_GetMouseState(ctypes.byref(x), ctypes.byref(y))
     return cubic.Point(x.value, y.value)
 
+def translate_pixel_coordinates(point):
+    # 1440x900 -> -1, 0, +1
+    x = (point.x / opengl.SCREEN_WIDTH)*2 - 1
+    y = -(point.y / opengl.SCREEN_HEIGHT)*2 + 1
+    res = cubic.Point(x, y)
+    return res
+
 def get_cube_mousepos(layout):
     """Returns the mouse position in cubic coordinates."""
     pixel_mousepos = get_pixel_mousepos()
+    pixel_mousepos = translate_pixel_coordinates(pixel_mousepos)
     cube_mousepos = cubic.pixel_to_cube(layout, pixel_mousepos) # 3 floats
     nearest_cube = cubic.cube_round(cube_mousepos)
+    print(pixel_mousepos)
     return nearest_cube
 
 def poll_inputs(game, camera):
@@ -36,7 +47,6 @@ def poll_inputs(game, camera):
             sdl2.ext.quit()
 
         elif event.type == sdl2.SDL_MOUSEWHEEL:
-            print('zoom2')
             camera.zoom(event.wheel.y)
 
         elif (event.type == sdl2.SDL_MOUSEBUTTONDOWN
@@ -55,6 +65,7 @@ def poll_inputs(game, camera):
             else:
                 print('clic')
             if mousepos_tile:
+                print('click on tile')
                 game.current_player.click_on_tile(tilepair)
 
     #sdl2.SDL_PumpEvents() # unsure if necessary
@@ -84,15 +95,18 @@ def run():
 
     Credit: https://gamedev.stackexchange.com/questions/81767/
     """
+    sdl2.SDL_GL_SetSwapInterval(0)
+
     game = Game()
     game.current_player.actions = 0
     camera = game.current_player.camera
-    vao = opengl.init(game, camera)
+    vao_content = opengl.get_vao_content(game.world)
 
     minimum_fps = 30
     target_pps = 60
     target_tps = 1
-    target_fps = 59
+    target_fps = 60
+    fps_values = []
 
     # Time that must elapse before a new run
     time_per_poll = 1000 / target_pps
@@ -139,7 +153,7 @@ def run():
         #     accumulator_pps -= time_per_poll
 
         while accumulator_tps >= time_per_tick and loops < max_frame_skip:
-            game.update_world()
+            vao_content = game.update_world()
             achieved_tps += 1
             accumulator_tps -= time_per_tick
             loops += 1
@@ -149,20 +163,50 @@ def run():
             #gfx.update_screen(game, camera)
             #print('tpf: ', time_per_frame)
             #print('acc fps: ', accumulator_fps)
-            opengl.update_screen(vao, camera, game.world)
+            opengl.update_screen(vao_content, game)
             achieved_fps += 1
             accumulator_fps -= time_per_frame
 
         if timer - sdl2.SDL_GetTicks() < 1000:
             timer += 1000
-            print(achieved_tps, "TPS,", achieved_fps, "FPS,",
-                  achieved_pps, "Polls,", achieved_loops, " Loops")
+            fps_values.append(achieved_fps)
+            ave_fps = int(sum(fps_values) / len(fps_values))
+            print(achieved_tps, 'TPS,', achieved_fps, 'FPS,',
+                 achieved_pps, 'Polls,', achieved_loops, 'Loops,',
+                 ave_fps, 'ave FPS')
+            #print(camera.layout.origin)
             achieved_tps = 0
             achieved_fps = 0
             achieved_pps = 0
             achieved_loops = 0
 
         achieved_loops += 1
+
+# def run():
+#     """The main game loop."""
+#     game = Game()
+#     game.current_player.actions = 0
+#     camera = game.current_player.camera
+#     vao_content = opengl.get_vao_content(game, camera)
+
+#     sdl2.SDL_GL_SetSwapInterval(0)
+
+#     start = time.time()
+#     n = 0
+#     all_fps = []
+#     while is_running(game):
+#         n += 1
+#         current = time.time()
+#         poll_inputs(game, camera)
+#         game.update_world()
+#         opengl.update_screen(vao_content, camera, game.world)
+#         if n > 10:
+#             dt = current - start
+#             fps = (1/dt)
+#             all_fps.append(fps)
+#             print('fps:', fps)
+#             print('average fps:', sum(all_fps)/len(all_fps))
+#             start = current
 
 if __name__ == "__main__":
     sys.exit(run())

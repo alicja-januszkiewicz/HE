@@ -129,8 +129,9 @@ def cube_to_pixel(layout, cube):
 def pixel_to_cube(layout, p):
     M = layout.orientation
     size = layout.size
-    origin = layout.origin
+    origin = Point(layout.origin.x*2, layout.origin.y*2) # I'm not sure why I have to multiply by two after I switched to opengl - possibly due to drawing the hex from the center?
     pt = Point((p.x - origin.x) / size.x, (p.y - origin.y) / size.y)
+    print('p:', p, 'o:', origin)
     q = M.b0 * pt.x + M.b1 * pt.y
     r = M.b2 * pt.x + M.b3 * pt.y
     return Cube(q, r, -q - r)
