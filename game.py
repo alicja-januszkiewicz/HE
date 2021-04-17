@@ -30,8 +30,8 @@ class Game:
         self.playergen = itertools.cycle(self.players)
         self.current_player = self.players[0]
         #self.world = worldgen.generate_world(shape='classic', radius=6, algorithm='random_ots', spawntype='classic', players=self.players)
-        self.world = worldgen.generate_world(shape='hexagon', radius=60, algorithm='random_ots', spawntype='random', players=self.players)
-        self.world = worldgen.generate_world(shape='hexagon', radius=40, algorithm='random_ots', spawntype='random', players=self.players)
+        self.world = worldgen.generate_world(shape='hexagon', radius=28, algorithm='random_ots', spawntype='random', players=self.players)
+        #self.world = worldgen.generate_world(shape='hexagon', radius=40, algorithm='random_ots', spawntype='random', players=self.players)
         self.initial_layout = worldgen.layout
         playergen.create_player_cameras(self)
 
@@ -71,8 +71,8 @@ class Game:
         if len(self.players) <= 1:
             print(self.current_player, "wins!")
 
-        vao_content = opengl.get_vao_content(self.world)
-        return vao_content
+        #vao_content = opengl.get_vao_content(self.world)
+        #return vao_content
 
     def defeat_player(self, player):
         """Removes a player instance from the players list."""

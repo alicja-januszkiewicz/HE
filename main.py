@@ -100,10 +100,12 @@ def run():
     game = Game()
     game.current_player.actions = 0
     camera = game.current_player.camera
-    vao_content = opengl.get_vao_content(game.world)
+    offsets_buffer = opengl.get_vertex_ubo(game.world)
+    colors_buffer = opengl.get_colors_ubo(game.world)
+    vao_content = opengl.init_vao_content(offsets_buffer, colors_buffer)
 
     minimum_fps = 30
-    target_pps = 60
+    target_pps = 66000
     target_tps = 1
     target_fps = 60
     fps_values = []
@@ -153,7 +155,7 @@ def run():
         #     accumulator_pps -= time_per_poll
 
         while accumulator_tps >= time_per_tick and loops < max_frame_skip:
-            vao_content = game.update_world()
+            game.update_world()
             achieved_tps += 1
             accumulator_tps -= time_per_tick
             loops += 1
@@ -163,6 +165,7 @@ def run():
             #gfx.update_screen(game, camera)
             #print('tpf: ', time_per_frame)
             #print('acc fps: ', accumulator_fps)
+            colors_buffer.write(opengl.calc_colors_buffer(game.world))
             opengl.update_screen(vao_content, game)
             achieved_fps += 1
             accumulator_fps -= time_per_frame

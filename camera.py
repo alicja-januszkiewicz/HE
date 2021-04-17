@@ -29,13 +29,14 @@ class Camera:
 
     def zoom(self, sign):
         """Camera zoom."""
+        print(self.layout.origin)
         self.layout.size.x += sign/150
-        #self.layout.origin.x += sign/100
+        #self.layout.origin.x += sign/1000
         self.layout.size.x = max(self.layout.size.x, 0.01)
         self.layout.size.x = min(self.layout.size.x, 1)
 
         self.layout.size.y += sign/150
-        #self.layout.origin.y += sign/50
+        #self.layout.origin.y += sign/1000
         self.layout.size.y = max(self.layout.size.y, 0.01)
         self.layout.size.y = min(self.layout.size.y, 1)
 

@@ -3,6 +3,8 @@ player generation, to be used in a future settings module."""
 from collections import namedtuple
 import random
 
+import numpy as np
+
 import army
 import cubic
 import camera
@@ -107,10 +109,14 @@ def random_player(game):
 def classic(game):
     """Hex Empire 1 players."""
     players = []
-    players.append(Player(game, "Redosia", ColorRGB(255, 102, 102), ai=False))
-    players.append(Player(game, "Bluegaria", ColorRGB(51, 204, 204)))
-    players.append(Player(game, "Greenland", ColorRGB(102, 255, 102)))
-    players.append(Player(game, "Violetnam", ColorRGB(128, 0, 128)))
+    # players.append(Player(game, "Redosia", ColorRGB(255, 102, 102), ai=False))
+    # players.append(Player(game, "Bluegaria", ColorRGB(51, 204, 204)))
+    # players.append(Player(game, "Greenland", ColorRGB(102, 255, 102)))
+    # players.append(Player(game, "Violetnam", ColorRGB(128, 0, 128)))
+    players.append(Player(game, "Redosia", np.array([1, 0.4, 0.4]), ai=False))
+    players.append(Player(game, "Bluegaria", np.array([0.2, 0.8, 0.8])))
+    players.append(Player(game, "Greenland", np.array([0.4, 1, 0.4])))
+    players.append(Player(game, "Violetnam", np.array([0.5, 0, 0.5])))
     return players
 
 def maxdist(game, number_of_players):

@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from math import sqrt, floor
 import random
 
+import numpy as np
+
 import cubic
 import data
-# from playergen import Player
+from playergen import Player
 
 #layout = cubic.Layout(cubic.orientation_pointy, cubic.Point(50, 50), cubic.Point(800, 550))
 layout = cubic.Layout(cubic.orientation_pointy, cubic.Point(.02, .02), cubic.Point(.2, 0))
@@ -35,7 +37,7 @@ class Tile:
     army : Army | None
         Armies can move between tiles.
     """
-    owner: object = None
+    owner: object = Player(None, "", np.array([0.2, 0.2, 0.2]))
     category: str = 'farmland'
     locality: object = None
     army: object = None

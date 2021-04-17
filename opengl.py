@@ -21,11 +21,13 @@ ctx = window.ctx
 vertex_shader = '''
         #version 330
         layout (location = 0) in vec2 in_cube;
+        //layout (location = 1) in int owners;
         layout (location = 1) in vec3 in_color;
 
         uniform float orientation[9];
         uniform vec2 size;
         uniform vec2 origin;
+        //uniform int owners[10981];
 
         float M[9] = orientation;
         float x = (M[0] * in_cube[0] + M[1] * in_cube[1]) * size.x;
@@ -35,6 +37,20 @@ vertex_shader = '''
         out vec3 v_color;
         void main() {
             gl_Position = vec4(pos + origin, 0.0, 1.0);
+            //if (owners == 1) {
+            //    v_color = vec3(0.5, 0, 0);
+            //} else if (owners == 2) {
+            //    v_color = vec3(0, 0.5, 0);
+            //} else if (owners == 3) {
+            //    v_color = vec3(0, 0, 0.5);
+            //} else if (owners == 4) {
+            //    v_color = vec3(0, 0.5, 0.5);
+            //} else if (owners == 5) {
+            //    v_color = vec3(0.2, 0.2, 0.2);
+            //} else {
+            //    v_color = vec3(1, 1, 1);
+            //}
+
             v_color = in_color;
         }
     '''
@@ -92,7 +108,7 @@ geometry_shader_2 = '''
         uniform float orientation[9];
         uniform vec2 size;
         uniform vec2 origin;
-        
+
         in vec3 v_color[];
         out vec3 g_color;
         
@@ -193,54 +209,23 @@ fragment_shader = '''
         }
     '''
 
-def get_offsets(visible_world):
-    offsets = np.empty(0)
-    for cube in visible_world:
-        offsets = np.append(offsets, cube.q)
-        offsets = np.append(offsets, cube.r)
-    return offsets
+def get_vertex_ubo(world):
+    coords = [[cube.q, cube.r] for cube in world.keys()]
+    offsets = np.array(coords, dtype='f4')
+    offsets_buffer = ctx.buffer(offsets)
+    return offsets_buffer
 
-def get_vao_content(world):
-    # Vertex coordinates stored in primitive_corners_buffer
-    #
-    #     E--F
-    #   D/| /|\A
-    #    \|/ |/
-    #     C--B
+def calc_colors_buffer(world):
+    tiles = [tile.owner.color for tile in world.values()]
+    colors = np.array(tiles, dtype='f4')
+    return colors
 
-    # (Per instance) offsets stored in offsets_uniform
-    # There are n (x_position, y_position) coordinate pairs
-    # World map -> cube(q,r,s) -> cube(x,y) -> offsets
-    # Use a vbo in future instead, applying transformations where needed?
-
-    # colors = np.array([
-    #     1.0, 0.0, 0.0,
-    #     1.0, 1.0, 0.0,
-    #     1.0, 1.0, 1.0,
-    #     1.0, 0.0, 1.0,
-    #     0.0, 1.0, 1.0,
-    #     0.0, 0.0, 1.0,
-    # ])
-
-    colors = np.empty(0)
-    offsets = np.empty(0)
-    for cube, tile in world.items():
-        offsets = np.append(offsets, cube.q)
-        offsets = np.append(offsets, cube.r)
-        
-        if not tile.owner:
-            color = np.array([
-                0.2, 0.2, 0.2,
-            ])
-        else:
-            color = tile.owner.color
-            color = np.array([color.r/255, color.g/255, color.b/255])
-
-        colors = np.append(colors, color)
-
-    offsets_buffer = ctx.buffer(offsets.astype('f4'))
+def get_colors_ubo(world):
+    colors = calc_colors_buffer(world)
     colors_buffer = ctx.buffer(colors.astype('f4'))
+    return colors_buffer
 
+def init_vao_content(offsets_buffer, colors_buffer):#owners_buffer):
     # The vao_content is a list of 3-tuples (buffer, format, attribs)
     # the format can have an empty or '/v', '/i', '/r' ending.
     # '/v' attributes are the default (per vertex)
@@ -248,14 +233,70 @@ def get_vao_content(world):
     # '/r' attributes are default values for the attributes (per render attributes)
     vao_content = [
         (offsets_buffer, '2f', 'in_cube'),
+        #(owners_buffer, 'i', 'owners'),
         (colors_buffer, '3f', 'in_color'),
     ]
 
     return vao_content
-    # vao = ctx.vertex_array(prog, vao_content, index_buffer)
 
-    # vao = ctx.vertex_array(prog, vao_content)
-    # return vao
+# def init_vao_content(world):
+#     # Vertex coordinates stored in primitive_corners_buffer
+#     #
+#     #     E--F
+#     #   D/| /|\A
+#     #    \|/ |/
+#     #     C--B
+
+#     # (Per instance) offsets stored in offsets_uniform
+#     # There are n (x_position, y_position) coordinate pairs
+#     # World map -> cube(q,r,s) -> cube(x,y) -> offsets
+#     # Use a vbo in future instead, applying transformations where needed?
+
+#     # colors = np.array([
+#     #     1.0, 0.0, 0.0,
+#     #     1.0, 1.0, 0.0,
+#     #     1.0, 1.0, 1.0,
+#     #     1.0, 0.0, 1.0,
+#     #     0.0, 1.0, 1.0,
+#     #     0.0, 0.0, 1.0,
+#     # ])
+
+#     colors = np.empty(0)
+#     offsets = np.empty(0)
+#     for cube, tile in world.items():
+#         offsets = np.append(offsets, [cube.q, cube.r])
+        
+#         if not tile.owner:
+#             color = np.array([
+#                 0.2, 0.2, 0.2,
+#             ])
+#         else:
+#             color = tile.owner.color
+#             color = np.array([color.r/255, color.g/255, color.b/255])
+#         colors = np.append(colors, color)
+
+#     offsets_buffer = ctx.buffer(offsets.astype('f4'))
+#     colors_buffer = ctx.buffer(colors.astype('f4'))
+
+#     #owners = get_owners_buffer(world)
+#     #owners_buffer = ctx.buffer(owners.astype('i'))
+
+#     # The vao_content is a list of 3-tuples (buffer, format, attribs)
+#     # the format can have an empty or '/v', '/i', '/r' ending.
+#     # '/v' attributes are the default (per vertex)
+#     # '/i' attributes are per instance attributes
+#     # '/r' attributes are default values for the attributes (per render attributes)
+#     vao_content = [
+#         (offsets_buffer, '2f', 'in_cube'),
+#         #(owners_buffer, 'i', 'owners')
+#         (colors_buffer, '3f', 'in_color'),
+#     ]
+
+#     return vao_content
+#     # vao = ctx.vertex_array(prog, vao_content, index_buffer)
+
+#     # vao = ctx.vertex_array(prog, vao_content)
+#     # return vao
 
 def single_hex_vao(cube):
     # if cube in world.items()
@@ -275,21 +316,38 @@ def single_hex_vao(cube):
     ]
     return vao_content
 
-def update_uniforms(program, camera):
+def update_uniforms(program, camera, world):
     layout = camera.layout
     M = layout.orientation
     size = layout.size
     origin = layout.origin
+    owners = []#[tile.owner.name for tile in world.values()]
+    for tile in world.values():
+        if tile.owner:
+            if tile.owner.name == 'Redosia':
+                owners.append(1)
+            elif tile.owner.name == 'Bluegaria':
+                owners.append(2)
+            elif tile.owner.name == 'Greenland':
+                owners.append(3)
+            elif tile.owner.name == 'Violetnam':
+                owners.append(4)
+        else:
+            owners.append(5)
 
     size_uniform = program['size']
     origin_uniform = program['origin']
     orientation_uniform = program['orientation']
+    # if program.get('owners', False):
+    #     tile_owners_uniform = program['owners']
+    #     tile_owners_uniform.value = owners
 
     size_uniform.value = size.x, size.y
     origin_uniform.value = origin.x, origin.y
     orientation_uniform.value = [M.f0, M.f1, M.f2, M.f3,
                            M.b0, M.b1, M.b2, M.b3,
                            M.start_angle]
+    
 
 # def render(window, vao):
 #     # window.ctx.clear(0.5,0.2,0.1)
@@ -323,10 +381,10 @@ def update_screen(vao_content, game):
     # )
     # vao3 = ctx.vertex_array(prog_3, vao_content)
 
-    update_uniforms(prog, camera)
+    update_uniforms(prog, camera, game.world)
     vao1.render(mode=moderngl.POINTS)
 
-    update_uniforms(prog_2, camera)
+    update_uniforms(prog_2, camera, game.world)
     vao2.render(mode=moderngl.POINTS)
 
     # update_uniforms(prog_3, camera)
