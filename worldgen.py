@@ -17,6 +17,7 @@ layout = cubic.Layout(cubic.layout_pointy, cubic.Point(50, 50), cubic.Point(800,
 class Locality:
     name: str = ''
     category: str = ''
+    starting_owner: object = None
 
 @dataclass
 class Tile:
@@ -137,7 +138,7 @@ def playerspawn_classic(filled_world, players):
     for player, pos in zip(players, starting_positions):
         tile = filled_world[pos]
         tile.owner = player
-        tile.locality = Locality(data.choose_random_city_name(), "Capital")
+        tile.locality = Locality(data.choose_random_city_name(), "Capital", player)
         player.starting_cube = pos
 
         for neighbour in cubic.get_nearest_neighbours(pos):
@@ -149,7 +150,7 @@ def playerspawn_random(filled_world, players):
         starting_cube = random.choice(list(filled_world.keys()))
         starting_tile = filled_world.get(starting_cube)
         starting_tile.owner = player
-        starting_tile.locality = Locality(data.choose_random_city_name(), "Capital")
+        starting_tile.locality = Locality(data.choose_random_city_name(), "Capital", player)
         player.starting_cube = starting_cube
 
 def choose_playerspawn(filled_world, players, spawntype):

@@ -13,6 +13,10 @@ army_sprite = sprite_factory.from_image(RESOURCES.get_path("army.png"))
 font_manager = sdl2.ext.FontManager('resources/Iceberg-Regular.ttf', size=18)
 tile_sprite = sprite_factory.from_image(RESOURCES.get_path('basetile3.png'))
 
+def rgb_to_hex(rgb, inverse=False):
+    rgb = rgb[::-1] if inverse else rgb
+    return int('0xFF%02X%02X%02X' % rgb, base=16)
+
 def hexagon(context, layout, cube, color):
     corners = cubic.polygon_corners(layout, cube)
     n = len(corners)
@@ -125,6 +129,7 @@ def tile_locality(context, layout, tilepair):
             x += 2/3 * layout.size.x
         circle(context, x, y, r/2, color)
     elif tile.locality.category == "Capital":
+        color = rgb_to_hex(tile.locality.starting_owner.color, inverse=True)
         if tile.army:
             x += 2/3 * layout.size.x
             r /= 2
@@ -156,8 +161,9 @@ def city_name(context, layout, tilepair):
     pos = cubic.cube_to_pixel(layout, cube)
     x = pos.x
     y = pos.y - layout.size.y * 1.15
+
     if tile.locality.category == "Capital":
-        text(context, layout, tile.locality.name, round(x), round(y), 100, color=0xFF0000)
+        text(context, layout, tile.locality.name, round(x), round(y), 100, color=rgb_to_hex(tile.locality.starting_owner.color))
     else:
         text(context, layout, tile.locality.name, round(x), round(y), 100)
 
