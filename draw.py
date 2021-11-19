@@ -156,8 +156,10 @@ def city_name(context, layout, tilepair):
     pos = cubic.cube_to_pixel(layout, cube)
     x = pos.x
     y = pos.y - layout.size.y * 1.15
-
-    text(context, layout, tile.locality.name, round(x), round(y), 100)
+    if tile.locality.category == "Capital":
+        text(context, layout, tile.locality.name, round(x), round(y), 100, color=0xFF0000)
+    else:
+        text(context, layout, tile.locality.name, round(x), round(y), 100)
 
 def army_info_text(context, layout, tilepair):
     coord, tile = tilepair
