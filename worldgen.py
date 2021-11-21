@@ -3,15 +3,18 @@ It exports the generate_world() function for the Game class __init__()
 method. In the future it will be used by some other module that will
 allow the user to tweak the worldgen settings from within the game.
 """
+import json
+import random
 from dataclasses import dataclass
 from math import sqrt, floor
-import random
 
 import cubic
 import data
 # from playergen import Player
 
 layout = cubic.Layout(cubic.layout_pointy, cubic.Point(50, 50), cubic.Point(800, 550))
+
+CITY_DENSITY = 0.1
 
 @dataclass
 class Locality:
@@ -103,10 +106,28 @@ def choose_shape(shape, radius):
     elif shape == 'hexagon': res = shape_hexagon(radius)
     return res
 
+def get_city_names():
+    """Returns a list of european city names under 12 characters in length."""
+    with open("resources/cities.json", "r") as read_file:
+        raw = json.load(read_file)
+    cities = raw['data']
+    city_names = [city['asciiname'] for city in cities if len(city['asciiname']) < 12]
+    random.shuffle(city_names)
+    return city_names
+
+def get_random_locality_name():
+    all_cities = get_city_names()
+    for city in all_cities:
+        yield city
+
+locality_name_generator = get_random_locality_name()
+
 def localgen_random(empty_world):
-    for tile in empty_world.values():
-        if random.random() > 0.9:
-            tile.locality = Locality(data.choose_random_city_name(), "City")
+    world_size = len(empty_world)
+    random_tiles = random.sample(world_size.values())
+    for tile in random_tiles:
+        name = next(locality_name_generator)
+        tile.locality = Locality(name, "City")
 
 def localgen_random_ots(empty_world):
     """Same as localgen_random(), but ensures there is one tile of space between every locality."""
@@ -117,9 +138,9 @@ def localgen_random_ots(empty_world):
         for neighbour in cubic.get_nearest_neighbours(cube):
             if neighbour in empty_world and empty_world.get(neighbour).locality:
                 flag = False
-        if flag and random.random() > 0.9:
-            tile.locality = Locality(data.choose_random_city_name(), "City")
-
+        if flag and random.random() > 1 - CITY_DENSITY:
+            name = next(locality_name_generator)
+            tile.locality = Locality(name, "City")
 
 def choose_localgen_algorithm(empty_world, algorithm):
     if algorithm == 'random':
@@ -138,7 +159,8 @@ def playerspawn_classic(filled_world, players):
     for player, pos in zip(players, starting_positions):
         tile = filled_world[pos]
         tile.owner = player
-        tile.locality = Locality(data.choose_random_city_name(), "Capital", player)
+        locality_name = next(locality_name_generator)
+        tile.locality = Locality(locality_name, "Capital", player)
         player.starting_cube = pos
 
         for neighbour in cubic.get_nearest_neighbours(pos):
@@ -150,7 +172,8 @@ def playerspawn_random(filled_world, players):
         starting_cube = random.choice(list(filled_world.keys()))
         starting_tile = filled_world.get(starting_cube)
         starting_tile.owner = player
-        starting_tile.locality = Locality(data.choose_random_city_name(), "Capital", player)
+        locality_name = next(locality_name_generator)
+        starting_tile.locality = Locality(locality_name, "Capital", player)
         player.starting_cube = starting_cube
 
 def choose_playerspawn(filled_world, players, spawntype):
